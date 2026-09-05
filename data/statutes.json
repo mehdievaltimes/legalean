@@ -1,0 +1,32 @@
+[
+  {
+    "id": "us-csa-812",
+    "jurisdiction": "US Federal",
+    "citation": "21 U.S.C. § 812, Schedule I(c)(10) (Controlled Substances Act)",
+    "raw_text": "Marihuana is classified as a Schedule I controlled substance. It is unlawful for any person to knowingly or intentionally manufacture, distribute, dispense, or possess marijuana, except as authorized by this subchapter (research registered with the DEA only). No exception exists for personal, recreational, or state-licensed adult use."
+  },
+  {
+    "id": "us-csa-841",
+    "jurisdiction": "US Federal",
+    "citation": "21 U.S.C. § 841(a)(1) (Controlled Substances Act)",
+    "raw_text": "Except as authorized, it shall be unlawful for any person knowingly or intentionally to manufacture, distribute, or dispense, or possess with intent to manufacture, distribute, or dispense, a controlled substance, including marijuana."
+  },
+  {
+    "id": "ny-cannabis-law-222",
+    "jurisdiction": "NY State",
+    "citation": "N.Y. Cannabis Law § 222 (Marihuana Regulation and Taxation Act, 2021)",
+    "raw_text": "It shall be lawful for any person 21 years of age or older to possess, display, purchase, obtain, cultivate, and use up to three ounces of cannabis and up to twenty-four grams of concentrated cannabis, subject to the restrictions of this article."
+  },
+  {
+    "id": "ny-cannabis-law-223",
+    "jurisdiction": "NY State",
+    "citation": "N.Y. Cannabis Law § 223 (Marihuana Regulation and Taxation Act, 2021)",
+    "raw_text": "The possession or use of cannabis by a person under the age of 21 is prohibited, except as permitted for registered patients under the medical cannabis program regardless of age when accompanied by a designated caregiver."
+  },
+  {
+    "id": "ny-penal-law-secondhand",
+    "jurisdiction": "NY State",
+    "citation": "N.Y. Public Health Law § 1399-o (Clean Indoor Air Act, as amended)",
+    "raw_text": "Smoking or vaping of cannabis is prohibited in any indoor area where smoking tobacco is prohibited, regardless of the age or possession status of the person, to protect the public from secondhand smoke."
+  }
+]
