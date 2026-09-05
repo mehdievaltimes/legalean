@@ -52,17 +52,18 @@ def require_lean() -> None:
         sys.exit(1)
 
 
-def test_sample_data_conflict_is_formally_verified():
+def test_sample_data_conflicts_are_formally_verified():
     statutes = load_statutes(DATA_DIR / "statutes.json")
     statutes_by_id = {s.id: s for s in statutes}
     rules = load_rules(DATA_DIR / "rules.json")
     candidates = find_candidates(rules)
-    assert len(candidates) == 1
+    assert len(candidates) == 2
 
     generated = generate_conflict_files(candidates, statutes_by_id, SCRATCH_DIR)
     results = verify_all(generated, LEAN_DIR)
-    assert len(results) == 1
-    assert results[0].verified, f"Lean rejected a conflict expected to be provable: {results[0].stderr}"
+    assert len(results) == 2
+    for result in results:
+        assert result.verified, f"Lean rejected a conflict expected to be provable: {result.stderr}"
 
 
 def test_genuinely_non_overlapping_candidate_is_rejected_by_lean():

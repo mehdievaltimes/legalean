@@ -8,15 +8,22 @@ using Lean 4 -- not a Python heuristic, an actual machine-checked proof.
 2010 state immigration-enforcement law partially struck down by the Supreme
 Court in *Arizona v. United States*, 567 U.S. 387 (2012), for conflicting
 with (being preempted by) federal law. This domain was picked because it has
-a real, well-documented, citable contradiction of exactly the shape this
-tool can formalize: federal law deliberately imposes no criminal penalty on
-an unauthorized alien for seeking or engaging in unauthorized employment,
-while SB 1070 § 5(C) made that same conduct a state crime -- the Court held
-§ 5(C) preempted for exactly this reason. Two more excerpts (upheld E-Verify
-requirements, and an alien-registration provision on both sides) are
-included as documented non-conflicts -- see Limitations for why the tool
-correctly stays silent on them, including one real case its model can't
-capture.
+two real, well-documented, citable contradictions of exactly the shape this
+tool can formalize:
+
+- federal law deliberately imposes no criminal penalty on an unauthorized
+  alien for seeking or engaging in unauthorized employment, while SB 1070
+  § 5(C) made that same conduct a state crime -- the Court held § 5(C)
+  preempted for exactly this reason (567 U.S. at 403-407);
+- federal law confers warrantless-arrest authority for suspected civil
+  removability on federal immigration officers only, while SB 1070 § 6
+  authorized state and local peace officers to make the same kind of arrest
+  -- the Court held § 6 preempted too (567 U.S. at 408-410).
+
+Two more excerpts (upheld E-Verify requirements, and an alien-registration
+provision on both sides) are included as documented non-conflicts -- see
+Limitations for why the tool correctly stays silent on them, including one
+real case its model can't capture.
 
 ## Framing
 
@@ -160,10 +167,11 @@ installed. `check_conflicts.py` runs `lake build` once (compiles the tiny
 axioms module; no network access, no external Lean dependencies), then
 generates and compiles one Lean file per structural candidate.
 
-Expected output: 1 candidate checked, 1 formally verified conflict --
-the federal-employment-noncriminalization rule vs. SB 1070 § 5(C). The
-E-Verify rule and the (both-"prohibited") registration-document rules
-correctly produce no candidates at all.
+Expected output: 2 candidates checked, 2 formally verified conflicts --
+the federal-employment-noncriminalization rule vs. SB 1070 § 5(C), and the
+federal-officers-only warrantless-arrest rule vs. SB 1070 § 6. The E-Verify
+rule and the (both-"prohibited") registration-document rules correctly
+produce no candidates at all.
 
 To re-run extraction from the raw text (e.g. after editing
 `data/statutes.json`):
@@ -207,7 +215,7 @@ false conflict claim, not just the Python heuristic.
 
 ## Limitations
 
-- **Tiny, cherry-picked sample.** Five excerpts, one conflict. This is a
+- **Tiny, cherry-picked sample.** Seven excerpts, two conflicts. This is a
   proof of concept for the pipeline shape, not a survey of immigration law.
 - **LLM extraction noise.** The model may phrase `subject`/`activity`
   inconsistently across excerpts or misread a condition. `_same_activity`'s

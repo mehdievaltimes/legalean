@@ -35,7 +35,7 @@ def rule(source_id, subject, activity, condition, action, scope) -> Rule:
     )
 
 
-def test_sample_data_has_expected_candidate():
+def test_sample_data_has_expected_candidates():
     statutes = load_statutes(DATA_DIR / "statutes.json")
     rules = load_rules(DATA_DIR / "rules.json")
     assert {r.source_id for r in rules} == {s.id for s in statutes}, "rules.json must match statutes.json ids"
@@ -43,7 +43,8 @@ def test_sample_data_has_expected_candidate():
     candidates = find_candidates(rules)
     pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in candidates}
     assert frozenset({"us-ina-employment-noncriminalization", "az-sb1070-5c"}) in pairs
-    assert len(candidates) == 1, f"expected exactly 1 candidate in the sample data, got {len(candidates)}"
+    assert frozenset({"us-ina-warrantless-arrest-federal-only", "az-sb1070-6"}) in pairs
+    assert len(candidates) == 2, f"expected exactly 2 candidates in the sample data, got {len(candidates)}"
 
 
 def test_classic_overlapping_age_gate_is_a_candidate_with_a_witness():

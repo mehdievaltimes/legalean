@@ -28,5 +28,17 @@
     "jurisdiction": "Arizona State",
     "citation": "Ariz. Rev. Stat. §§ 23-211 to 23-212 (Legal Arizona Workers Act); upheld in Chamber of Commerce v. Whiting, 563 U.S. 582 (2011)",
     "raw_text": "Every employer in this state shall verify the employment eligibility of a newly hired employee through the federal E-Verify program. An employer who knowingly employs an unauthorized alien is subject to suspension or revocation of its business license."
+  },
+  {
+    "id": "us-ina-warrantless-arrest-federal-only",
+    "jurisdiction": "US Federal",
+    "citation": "8 U.S.C. § 1357(a)(2); discussed in Arizona v. United States, 567 U.S. 387, 408-410 (2012)",
+    "raw_text": "A federal immigration officer may arrest an alien without a warrant only where the officer has reason to believe the alien is in the United States in violation of the immigration laws and is likely to escape before a warrant can be obtained. This warrantless-arrest authority for suspected civil removability is conferred on federal immigration officers only; it is not extended to state or local law enforcement officers."
+  },
+  {
+    "id": "az-sb1070-6",
+    "jurisdiction": "Arizona State",
+    "citation": "Ariz. Rev. Stat. § 13-3883(A)(5) (S.B. 1070 § 6); held preempted in Arizona v. United States, 567 U.S. 387, 408-410 (2012)",
+    "raw_text": "A state or local peace officer, without a warrant, may arrest a person if the officer has probable cause to believe that the person has committed a public offense that makes the person removable from the United States."
   }
 ]
