@@ -1,42 +1,42 @@
 [
   {
-    "source_id": "us-csa-812",
-    "subject": "any person",
-    "activity": "possession of cannabis",
+    "source_id": "us-ina-employment-noncriminalization",
+    "subject": "unauthorized alien",
+    "activity": "seeking or engaging in unauthorized employment",
     "condition": {"variable": null, "operator": null, "value": null},
-    "action": "prohibited",
-    "scope": "US Federal"
-  },
-  {
-    "source_id": "us-csa-841",
-    "subject": "any person",
-    "activity": "possession of cannabis",
-    "condition": {"variable": null, "operator": null, "value": null},
-    "action": "prohibited",
-    "scope": "US Federal"
-  },
-  {
-    "source_id": "ny-cannabis-law-222",
-    "subject": "person 21 years of age or older",
-    "activity": "possession of cannabis",
-    "condition": {"variable": "age", "operator": ">=", "value": 21},
     "action": "allowed",
-    "scope": "NY State"
+    "scope": "US Federal"
   },
   {
-    "source_id": "ny-cannabis-law-223",
-    "subject": "person under 21",
-    "activity": "possession of cannabis",
-    "condition": {"variable": "age", "operator": "<", "value": 21},
-    "action": "prohibited",
-    "scope": "NY State"
-  },
-  {
-    "source_id": "ny-penal-law-secondhand",
-    "subject": "any person",
-    "activity": "indoor smoking of cannabis",
+    "source_id": "az-sb1070-5c",
+    "subject": "unauthorized alien",
+    "activity": "seeking or engaging in unauthorized employment",
     "condition": {"variable": null, "operator": null, "value": null},
     "action": "prohibited",
-    "scope": "NY State"
+    "scope": "Arizona State"
+  },
+  {
+    "source_id": "us-ina-alien-registration",
+    "subject": "alien 18 or older",
+    "activity": "failing to carry alien registration document",
+    "condition": {"variable": null, "operator": null, "value": null},
+    "action": "prohibited",
+    "scope": "US Federal"
+  },
+  {
+    "source_id": "az-sb1070-3",
+    "subject": "person subject to federal alien registration requirements",
+    "activity": "failing to carry alien registration document",
+    "condition": {"variable": null, "operator": null, "value": null},
+    "action": "prohibited",
+    "scope": "Arizona State"
+  },
+  {
+    "source_id": "az-legal-workers-act-everify",
+    "subject": "employer",
+    "activity": "verifying employee work authorization via E-Verify",
+    "condition": {"variable": null, "operator": null, "value": null},
+    "action": "required",
+    "scope": "Arizona State"
   }
 ]

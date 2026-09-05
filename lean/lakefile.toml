@@ -1,0 +1,6 @@
+name = "Legalean"
+defaultTargets = ["Legalean"]
+
+[[lean_lib]]
+name = "Legalean"
+globs = ["Legalean.+"]

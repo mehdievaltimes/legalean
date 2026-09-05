@@ -1,32 +1,32 @@
 [
   {
-    "id": "us-csa-812",
+    "id": "us-ina-employment-noncriminalization",
     "jurisdiction": "US Federal",
-    "citation": "21 U.S.C. § 812, Schedule I(c)(10) (Controlled Substances Act)",
-    "raw_text": "Marihuana is classified as a Schedule I controlled substance. It is unlawful for any person to knowingly or intentionally manufacture, distribute, dispense, or possess marijuana, except as authorized by this subchapter (research registered with the DEA only). No exception exists for personal, recreational, or state-licensed adult use."
+    "citation": "8 U.S.C. § 1324a; discussed in Arizona v. United States, 567 U.S. 387, 403-407 (2012)",
+    "raw_text": "The Immigration Reform and Control Act imposes civil fines and, for repeated violations, criminal penalties on employers who knowingly hire unauthorized workers. Congress considered and rejected imposing federal criminal penalties on an unauthorized alien for the act of merely seeking or engaging in unauthorized employment; that conduct carries no federal criminal sanction."
   },
   {
-    "id": "us-csa-841",
+    "id": "az-sb1070-5c",
+    "jurisdiction": "Arizona State",
+    "citation": "Ariz. Rev. Stat. § 13-2928(C) (S.B. 1070 § 5(C)); held preempted in Arizona v. United States, 567 U.S. 387 (2012)",
+    "raw_text": "It is a class 1 misdemeanor for an unauthorized alien to knowingly apply for work, solicit work in a public place, or perform work as an employee or independent contractor in this state."
+  },
+  {
+    "id": "us-ina-alien-registration",
     "jurisdiction": "US Federal",
-    "citation": "21 U.S.C. § 841(a)(1) (Controlled Substances Act)",
-    "raw_text": "Except as authorized, it shall be unlawful for any person knowingly or intentionally to manufacture, distribute, or dispense, or possess with intent to manufacture, distribute, or dispense, a controlled substance, including marijuana."
+    "citation": "8 U.S.C. §§ 1304(e), 1306(a)",
+    "raw_text": "Every alien eighteen years of age and over shall at all times carry with them any certificate of alien registration issued to them. Willful failure to do so is a federal misdemeanor. This registration scheme is comprehensive and occupies the field of alien registration."
   },
   {
-    "id": "ny-cannabis-law-222",
-    "jurisdiction": "NY State",
-    "citation": "N.Y. Cannabis Law § 222 (Marihuana Regulation and Taxation Act, 2021)",
-    "raw_text": "It shall be lawful for any person 21 years of age or older to possess, display, purchase, obtain, cultivate, and use up to three ounces of cannabis and up to twenty-four grams of concentrated cannabis, subject to the restrictions of this article."
+    "id": "az-sb1070-3",
+    "jurisdiction": "Arizona State",
+    "citation": "Ariz. Rev. Stat. § 13-1509 (S.B. 1070 § 3); held preempted in Arizona v. United States, 567 U.S. 387 (2012)",
+    "raw_text": "It is a class 1 misdemeanor for a person who is unlawfully present in the United States to willfully fail to complete or carry an alien registration document, if the federal registration requirements apply to that person."
   },
   {
-    "id": "ny-cannabis-law-223",
-    "jurisdiction": "NY State",
-    "citation": "N.Y. Cannabis Law § 223 (Marihuana Regulation and Taxation Act, 2021)",
-    "raw_text": "The possession or use of cannabis by a person under the age of 21 is prohibited, except as permitted for registered patients under the medical cannabis program regardless of age when accompanied by a designated caregiver."
-  },
-  {
-    "id": "ny-penal-law-secondhand",
-    "jurisdiction": "NY State",
-    "citation": "N.Y. Public Health Law § 1399-o (Clean Indoor Air Act, as amended)",
-    "raw_text": "Smoking or vaping of cannabis is prohibited in any indoor area where smoking tobacco is prohibited, regardless of the age or possession status of the person, to protect the public from secondhand smoke."
+    "id": "az-legal-workers-act-everify",
+    "jurisdiction": "Arizona State",
+    "citation": "Ariz. Rev. Stat. §§ 23-211 to 23-212 (Legal Arizona Workers Act); upheld in Chamber of Commerce v. Whiting, 563 U.S. 582 (2011)",
+    "raw_text": "Every employer in this state shall verify the employment eligibility of a newly hired employee through the federal E-Verify program. An employer who knowingly employs an unauthorized alien is subject to suspension or revocation of its business license."
   }
 ]
