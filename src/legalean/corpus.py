@@ -70,6 +70,10 @@ def load_statute_file(path: Path) -> tuple[Statute, Rule]:
         citation=fields["citation"],
         raw_text=_parse_excerpt(match.group(2), path),
     )
+    exclusive_raw = fields.get("exclusive", "false").strip().lower()
+    if exclusive_raw not in ("true", "false"):
+        raise ValueError(f"{path}: exclusive must be 'true' or 'false', got {exclusive_raw!r}")
+
     rule = Rule(
         source_id=fields["id"],
         subject=fields["subject"],
@@ -77,6 +81,7 @@ def load_statute_file(path: Path) -> tuple[Statute, Rule]:
         condition=Condition.from_text(fields["condition"]),
         action=fields["action"],
         scope=fields["scope"],
+        exclusive=exclusive_raw == "true",
     )
     return statute, rule
 

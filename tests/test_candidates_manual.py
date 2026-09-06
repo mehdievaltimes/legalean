@@ -16,10 +16,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from legalean.candidates import _find_witness, find_candidates  # noqa: E402
+from legalean.candidates import CONTRADICTION, PREEMPTION, _find_witness, find_candidates  # noqa: E402
 from legalean.corpus import load_corpus  # noqa: E402
 from legalean.models import Condition, Rule  # noqa: E402
-from legalean.scopes import scopes_overlap  # noqa: E402
+from legalean.scopes import scopes_overlap, strictly_encloses  # noqa: E402
 
 STATUTES_DIR = Path(__file__).parent.parent / "statutes"
 
@@ -48,7 +48,8 @@ def test_corpus_loads_and_has_expected_candidates():
     assert frozenset({"us-const-equal-protection-education", "tx-educ-code-21-031"}) in pairs
     assert frozenset({"us-const-equal-protection-school-status-check", "al-hb56-28"}) in pairs
     assert frozenset({"us-ina-harboring-religious-exemption", "az-sb1070-13-2929"}) in pairs
-    assert len(candidates) == 6, f"expected exactly 6 candidates in the corpus, got {len(candidates)}"
+    assert frozenset({"us-ina-alien-registration", "az-sb1070-3"}) in pairs
+    assert len(candidates) == 7, f"expected exactly 7 candidates in the corpus, got {len(candidates)}"
 
 
 def test_one_federal_rule_fans_out_to_multiple_states():
@@ -113,12 +114,83 @@ def test_corpus_compatible_pairs_are_not_candidates():
     assert frozenset({"us-ina-state-cooperation-permitted", "az-sb1070-2b"}) not in pairs
 
 
-def test_corpus_field_preemption_stays_a_documented_false_negative():
-    """The registration pair is both-`prohibited`, and field preemption is not
-    modeled, so the tool correctly finds nothing -- see README limitations."""
+def test_corpus_registration_pair_is_field_preemption_not_contradiction():
+    """Both sides say `prohibited`, so there is no deontic contradiction --
+    the pair is caught only because the federal scheme occupies the field."""
     _, rules = load_corpus(STATUTES_DIR)
-    pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in find_candidates(rules)}
-    assert frozenset({"us-ina-alien-registration", "az-sb1070-3"}) not in pairs
+    pair = next(
+        c
+        for c in find_candidates(rules)
+        if {c.rule_a.source_id, c.rule_b.source_id} == {"us-ina-alien-registration", "az-sb1070-3"}
+    )
+    assert pair.kind == PREEMPTION
+    assert pair.rule_a.action == pair.rule_b.action == "prohibited"
+    # rule_a is always the exclusive/occupying rule for a preemption candidate.
+    assert pair.rule_a.source_id == "us-ina-alien-registration" and pair.rule_a.exclusive
+    assert pair.rule_b.source_id == "az-sb1070-3" and not pair.rule_b.exclusive
+
+
+def test_only_one_corpus_rule_is_marked_exclusive():
+    """`exclusive` encodes a judicial holding, so it should stay rare and deliberate."""
+    _, rules = load_corpus(STATUTES_DIR)
+    assert [r.source_id for r in rules if r.exclusive] == ["us-ina-alien-registration"]
+
+
+def test_preemption_needs_strict_enclosure():
+    """A sovereign never preempts itself, and states never preempt each other."""
+    assert strictly_encloses("US Federal", "Arizona State")
+    assert not strictly_encloses("US Federal", "US Federal")
+    assert not strictly_encloses("Arizona State", "US Federal")
+    assert not strictly_encloses("Arizona State", "Alabama State")
+
+    # Two federal rules on the same activity, one exclusive: not a preemption.
+    a = rule("a", "x", "act", (None, None, None), "prohibited", "US Federal")
+    a.exclusive = True
+    b = rule("b", "x", "act", (None, None, None), "prohibited", "US Federal")
+    assert find_candidates([a, b]) == []
+
+    # A state cannot preempt the federal government.
+    c = rule("c", "x", "act", (None, None, None), "prohibited", "Arizona State")
+    c.exclusive = True
+    d = rule("d", "x", "act", (None, None, None), "prohibited", "US Federal")
+    assert find_candidates([c, d]) == []
+
+
+def test_preemption_fires_regardless_of_the_displaced_action():
+    """The point of field preemption: content of the state rule is irrelevant."""
+    federal = rule("f", "x", "act", (None, None, None), "prohibited", "US Federal")
+    federal.exclusive = True
+    for action in ("allowed", "prohibited", "required"):
+        state = rule("s", "x", "act", (None, None, None), action, "Arizona State")
+        candidates = find_candidates([federal, state])
+        assert len(candidates) == 1, f"expected a candidate for state action {action}"
+        assert candidates[0].kind == PREEMPTION
+
+
+def test_preemption_takes_precedence_over_contradiction():
+    """When a pair is both, only the preemption candidate is emitted."""
+    federal = rule("f", "x", "act", (None, None, None), "prohibited", "US Federal")
+    federal.exclusive = True
+    state = rule("s", "x", "act", (None, None, None), "allowed", "Arizona State")
+    candidates = find_candidates([federal, state])
+    assert len(candidates) == 1
+    assert candidates[0].kind == PREEMPTION
+
+
+def test_non_exclusive_same_action_pair_is_still_silent():
+    """Without the exclusive flag, agreeing rules remain a non-conflict."""
+    federal = rule("f", "x", "act", (None, None, None), "prohibited", "US Federal")
+    state = rule("s", "x", "act", (None, None, None), "prohibited", "Arizona State")
+    assert find_candidates([federal, state]) == []
+
+
+def test_other_corpus_conflicts_are_contradictions():
+    _, rules = load_corpus(STATUTES_DIR)
+    kinds = {
+        frozenset({c.rule_a.source_id, c.rule_b.source_id}): c.kind for c in find_candidates(rules)
+    }
+    assert kinds[frozenset({"us-ina-employment-noncriminalization", "az-sb1070-5c"})] == CONTRADICTION
+    assert kinds[frozenset({"us-const-equal-protection-education", "tx-educ-code-21-031"})] == CONTRADICTION
 
 
 def test_general_rule_is_not_flagged_against_its_own_exception():

@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from legalean.candidates import Candidate, Witness, find_candidates  # noqa: E402
+from legalean.candidates import PREEMPTION, Candidate, Witness, find_candidates  # noqa: E402
 from legalean.corpus import load_corpus  # noqa: E402
 from legalean.leangen import generate_conflict_files  # noqa: E402
 from legalean.leanverify import verify_all  # noqa: E402
@@ -56,11 +56,11 @@ def test_corpus_conflicts_are_formally_verified():
     statutes, rules = load_corpus(STATUTES_DIR)
     statutes_by_id = {s.id: s for s in statutes}
     candidates = find_candidates(rules)
-    assert len(candidates) == 6
+    assert len(candidates) == 7
 
     generated = generate_conflict_files(candidates, statutes_by_id, SCRATCH_DIR)
     results = verify_all(generated, LEAN_DIR)
-    assert len(results) == 6
+    assert len(results) == 7
     for result in results:
         assert result.verified, f"Lean rejected a conflict expected to be provable: {result.stderr}"
 
@@ -140,21 +140,25 @@ def test_string_conditions_compile_end_to_end():
 
 def test_generated_header_pairs_each_citation_with_its_own_rule():
     """Regression: the exclusion axiom fixes hypothesis order, which need not match
-    candidate order -- the header must not pair ruleA's citation with ruleB's rule."""
+    candidate order -- the header must not pair one rule's citation with the
+    other's description. Covers both header layouts (contradiction and
+    preemption), which label their two entries differently."""
     statutes, rules = load_corpus(STATUTES_DIR)
     statutes_by_id = {s.id: s for s in statutes}
     candidates = find_candidates(rules)
     generated = generate_conflict_files(candidates, statutes_by_id, SCRATCH_DIR)
+    header_prefixes = ("ruleA:", "ruleB:", "federal (occupies the field):", "state (displaced):")
 
     assert generated, "expected at least one generated file to check"
+    assert any(gf.candidate.kind == PREEMPTION for gf in generated), "expected a preemption file too"
     for gf in generated:
         lines = gf.path.read_text(encoding="utf-8").splitlines()
         for rule in (gf.candidate.rule_a, gf.candidate.rule_b):
             citation = statutes_by_id[rule.source_id].citation
             # The line describing this rule must be the one directly after its own
-            # citation -- regardless of which binder (ruleA/ruleB) it became.
+            # citation -- regardless of which binder it became.
             citation_idx = next(
-                (i for i, ln in enumerate(lines) if citation in ln and ln.startswith(("ruleA:", "ruleB:"))),
+                (i for i, ln in enumerate(lines) if citation in ln and ln.startswith(header_prefixes)),
                 None,
             )
             assert citation_idx is not None, f"{gf.path.name}: citation for {rule.source_id} not in header"
@@ -180,6 +184,43 @@ def test_genuinely_non_overlapping_candidate_is_rejected_by_lean():
     results = verify_all(generated, LEAN_DIR)
     assert len(results) == 1
     assert not results[0].verified, "Lean should have rejected a witness that satisfies neither condition"
+
+
+def test_field_preemption_proof_uses_its_own_axiom():
+    """The registration pair must close with field_preemption_excl, not either
+    deontic exclusion axiom -- and must state the displaced rule's real action."""
+    statutes, rules = load_corpus(STATUTES_DIR)
+    statutes_by_id = {s.id: s for s in statutes}
+    pair = [
+        c
+        for c in find_candidates(rules)
+        if {c.rule_a.source_id, c.rule_b.source_id} == {"us-ina-alien-registration", "az-sb1070-3"}
+    ]
+    assert len(pair) == 1 and pair[0].kind == PREEMPTION
+    generated = generate_conflict_files(pair, statutes_by_id, SCRATCH_DIR)
+    source = generated[0].path.read_text(encoding="utf-8")
+    assert "field_preemption_excl" in source
+    assert "allowed_prohibited_excl" not in source and "prohibited_required_excl" not in source
+    assert "ExclusivelyFederal" in source
+    # The displaced rule keeps its actual modality, injected into the disjunction.
+    assert "Prohibited (Activity x)" in source and "Or.inr (Or.inl" in source
+    # And the federal condition is still really checked.
+    assert "x ≥ 18" in source and "by omega" in source
+    assert verify_all(generated, LEAN_DIR)[0].verified
+
+
+def test_false_preemption_witness_is_rejected_by_lean():
+    """Lean gates preemption proofs too: a witness outside the federal rule's
+    own condition must not yield a proof."""
+    federal = rule("f", "s", "act", ("age", ">=", 18), "prohibited", "US Federal")
+    federal.exclusive = True
+    state = rule("s", "s", "act", (None, None, None), "prohibited", "Arizona State")
+    bad = Candidate(rule_a=federal, rule_b=state, witness=Witness(17, "Int"), kind=PREEMPTION)
+    statutes_by_id = {
+        i: Statute(id=i, jurisdiction="test", citation=f"test-{i}", raw_text="test") for i in ("f", "s")
+    }
+    results = verify_all(generate_conflict_files([bad], statutes_by_id, SCRATCH_DIR), LEAN_DIR)
+    assert not results[0].verified, "17 does not satisfy `age >= 18`; Lean should refuse"
 
 
 def test_false_categorical_witness_is_rejected_by_lean():

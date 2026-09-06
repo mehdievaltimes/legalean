@@ -29,3 +29,18 @@ theorem smoke_prohibited_required_conflict
     (ruleB : ∀ x : Int, True → Required (Activity x)) :
     False :=
   prohibited_required_excl (Activity 0) (ruleA 0 trivial) (ruleB 0 trivial)
+
+/-- Field preemption bites regardless of what the competing rule says -- here
+    the competing rule *agrees* with the federal one, and it is still ruled out. -/
+theorem smoke_field_preemption_same_action
+    (federal : ∀ x : Int, True → ExclusivelyFederal (Activity x))
+    (state : ∀ x : Int, True → Prohibited (Activity x)) :
+    False :=
+  field_preemption_excl (Activity 0) (federal 0 trivial) (Or.inr (Or.inl (state 0 trivial)))
+
+/-- ...and it reaches an `allowed` or `required` state rule just the same. -/
+theorem smoke_field_preemption_allowed
+    (federal : ∀ x : Int, x ≥ 18 → ExclusivelyFederal (Activity x))
+    (state : ∀ x : Int, True → Allowed (Activity x)) :
+    False :=
+  field_preemption_excl (Activity 18) (federal 18 (by omega)) (Or.inl (state 18 trivial))

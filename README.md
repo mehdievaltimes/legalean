@@ -34,22 +34,15 @@ so that every branch of the tool's logic is exercised against actual law:
 | 14th Am. equal protection (*HICA*) ↔ Ala. H.B. 56 § 28 | prohibited / **required** | **conflict** (Lean-verified) | § 28 permanently enjoined |
 | Federal voluntary E-Verify ↔ Legal Arizona Workers Act | allowed / required | compatible, no conflict | state law upheld (*Whiting*) |
 | Federal status-check cooperation ↔ S.B. 1070 § 2(B) | allowed / required | compatible, no conflict | § 2(B) upheld on its face |
-| Federal alien registration ↔ S.B. 1070 § 3 | prohibited / prohibited | nothing (false negative) | § 3 preempted — *field* preemption |
+| Federal alien registration ↔ S.B. 1070 § 3 | prohibited / prohibited | **field preemption** (Lean-verified) | § 3 preempted — *field* preemption |
 | Federal harboring safe harbor ↔ A.R.S. § 13-2929 | allowed / prohibited | **conflict** (Lean-verified) | enjoined — *conflict* preemption |
 
-The registration row is the honest part: the tool **cannot** model field
-preemption, where a duplicate state law is still void because Congress
-occupied the field, so it correctly finds nothing there. It is kept in the
-corpus rather than hidden. See Limitations.
-
-The harboring row used to be a second such miss, and it is worth saying why
-it no longer is. The federal statute's religious safe harbor —
-8 U.S.C. § 1324(a)(1)(C), the very thing the Ninth Circuit's conflict
-analysis turned on — was originally flattened away by formalizing the
-federal rule as an unconditional `prohibited`. Adding **categorical
-conditions** let the exemption be carried (`religious_volunteer == true`),
-and the conflict is now found and proved. That is the intended arc: a
-documented limitation, then the capability that removes it.
+Note the registration row: **both rules say `prohibited`**, so there is no
+deontic contradiction there at all, and it is still reported. That is field
+preemption — the second kind of conflict the tool detects, described below.
+Both it and the harboring row were documented false negatives earlier in
+this project's history; each was retired by a capability rather than by
+rewording the corpus.
 
 ## Framing
 
@@ -86,6 +79,7 @@ candidates --[Lean codegen]--> lean/Legalean/Conflicts/*.lean
    condition: always          # or `age >= 18`, `flag == true`, `basis == "x"`
    action: prohibited         # allowed | prohibited | required
    scope: Arizona State
+   exclusive: false           # optional; true = this sovereign occupies the field
    ---
    ```
 
@@ -95,16 +89,20 @@ candidates --[Lean codegen]--> lean/Legalean/Conflicts/*.lean
 
 2. **Candidate pre-filtering** ([`candidates.py`](src/legalean/candidates.py))
    — plain Python, no Lean. This does **not** decide whether two rules
-   conflict; it decides which pairs are worth asking Lean about, requiring
-   all of: overlapping `scope`s (per [`scopes.py`](src/legalean/scopes.py),
-   where "US Federal" reaches into "Arizona State" — the Supremacy Clause
-   premise, U.S. Const. art. VI, cl. 2); same `activity`; contradictory
-   `action`s; and a constructible integer **witness** satisfying both
-   conditions.
+   conflict; it decides which pairs are worth asking Lean about. Every
+   candidate needs the same `activity` and a constructible **witness** (a
+   concrete case both conditions cover). Beyond that there are two shapes:
+   a **contradiction** needs overlapping `scope`s (per
+   [`scopes.py`](src/legalean/scopes.py), where "US Federal" reaches into
+   "Arizona State" — the Supremacy Clause premise, U.S. Const. art. VI,
+   cl. 2) plus contradictory `action`s; a **field preemption** needs one
+   rule marked `exclusive` whose scope *strictly encloses* the other's, and
+   ignores actions entirely.
 
 3. **Lean codegen** ([`leangen.py`](src/legalean/leangen.py)) — one
    self-contained Lean file per candidate, stating both rules as hypotheses
-   over a shared opaque `Activity : Int → Prop` and claiming `False`.
+   over a shared opaque `Activity` and claiming `False`. The carrier type
+   (`Int`/`Bool`/`String`) and the closing axiom depend on the candidate.
 
 4. **Formal verification** ([`leanverify.py`](src/legalean/leanverify.py))
    — runs `lake env lean` per file. A pair is reported **only** if Lean's
@@ -130,8 +128,9 @@ axiom allowed_prohibited_excl (p : Prop) : Allowed p → Prohibited p → False
 axiom prohibited_required_excl (p : Prop) : Prohibited p → Required p → False
 ```
 
-The modalities are opaque; the only facts Lean knows are those two
-exclusions. Both are load-bearing on real law: five conflicts close with
+The modalities are opaque; the only facts Lean knows are these exclusions
+plus the field-preemption axiom below. Both deontic exclusions are
+load-bearing on real law: five conflicts close with
 `allowed_prohibited_excl`, and the Alabama school-status pair closes with
 `prohibited_required_excl`. Meanwhile `allowed`/`required` is deliberately
 **not** exclusive — a mandatory act is trivially a permitted one — which is
@@ -185,6 +184,42 @@ The carrier type is fixed by the witness, so both rules in a pair must be
 formalized at the same type; a variable given a number on one side and a
 string on the other yields no candidate rather than a bogus one.
 
+### Field preemption — the other kind of conflict
+
+The exclusions above say a single act cannot carry two incompatible deontic
+statuses. Field preemption says something different and stronger: a
+regulatory field belongs exclusively to one sovereign, so *any* rule from
+another sovereign in that field collides with it — **even one that agrees**.
+That is why the second premise is a disjunction over all three modalities:
+
+```lean
+axiom ExclusivelyFederal : Prop → Prop
+
+axiom field_preemption_excl (p : Prop) :
+    ExclusivelyFederal p → (Allowed p ∨ Prohibited p ∨ Required p) → False
+```
+
+A rule opts in with `exclusive: true` in its frontmatter. The generated
+proof states the displaced rule with its *actual* modality and injects it
+into the disjunction, so the theorem is about the real rule rather than a
+paraphrase:
+
+```lean
+theorem preemption_us_ina_alien_registration_vs_az_sb1070_3
+    (federal : (∀ x : Int, x ≥ 18 → ExclusivelyFederal (Activity x)))
+    (state : (∀ x : Int, True → Prohibited (Activity x))) :
+    False :=
+  field_preemption_excl (Activity 18) (federal 18 (by omega)) (Or.inr (Or.inl (state 18 trivial)))
+```
+
+Both rules there say `prohibited` — they agree completely — and the pair is
+still a conflict. Two things constrain it: the federal rule's own condition
+must still hold at the witness (`omega` checks `18 ≥ 18`), and the scope
+relation must be *strict*, so a sovereign never preempts itself and no state
+preempts another. Where a pair would qualify as both a contradiction and a
+preemption, only the preemption is reported — it is dispositive regardless
+of content, so the second finding would be noise.
+
 ## Running it
 
 Requires Python 3.10+ and the Lean 4 toolchain (`elan`, providing
@@ -205,8 +240,9 @@ It runs `lake build` once (compiles the axioms module; no network, no
 external Lean dependencies), then generates and compiles one Lean file per
 candidate.
 
-Expected output: 18 rules loaded, 6 candidates checked, 6 formally verified
-conflicts.
+Expected output: 18 rules loaded, 7 candidates checked, 7 formally verified
+conflicts
+(six contradictions and one field preemption).
 
 Flags: `--statutes <dir>` to point at a different corpus,
 `--keep-lean-files` to leave the generated proofs in
@@ -273,19 +309,26 @@ for the axiom system itself.
   where it compresses real doctrine (e.g. `allowed` standing in for "not
   criminally prohibited", or § 2(B)'s "reasonable suspicion" and "when
   practicable" qualifiers being dropped). Read them skeptically.
-- **Field preemption is not modeled.** S.B. 1070 § 3 merely *duplicates* the
-  federal registration offense, so there is no contradiction to find — yet
-  the Supreme Court held it preempted because Congress occupied the field,
-  leaving no room for a parallel state law even one that agrees. Modeling
-  this needs a different rule field (e.g. `exclusive_federal_domain`) and
-  new axioms. Left unmodeled deliberately rather than modeled inaccurately.
-- **Dropped exceptions cause missed conflicts.** The federal harboring
-  statute's religious safe harbor (8 U.S.C. § 1324(a)(1)(C)) is flattened
-  away by formalizing that rule as an unconditional `prohibited`. That
-  exemption is exactly what the Ninth Circuit's conflict-preemption analysis
-  of A.R.S. § 13-2929 relied on, so the tool misses a conflict it is
-  otherwise shaped to catch. Conflicts frequently live in the exceptions,
-  and a single-predicate `condition` cannot hold them.
+- **`exclusive: true` is a judicial holding, not statutory text — the most
+  editorial input in the corpus.** Every other frontmatter field is read off
+  the excerpt. Congress does not write "we occupy this field"; courts infer
+  it from a scheme's comprehensiveness. So marking a rule exclusive feeds a
+  legal conclusion into the tool and then derives consequences from it. The
+  derivation is machine-checked; the premise is a judgment call, and a wrong
+  one propagates silently. Exactly one corpus rule carries the flag, and a
+  test pins that.
+- **Jurisdiction is not formalized in Lean.** `Allowed`/`Prohibited`/
+  `Required`/`ExclusivelyFederal` carry no scope, so nothing in the Lean
+  encoding knows federal law outranks state law, or that two states are
+  unrelated. `scopes.py` decides which pairs are eligible *before* a theorem
+  is generated. Lean verifies the deontic and arithmetic core; Python
+  supplies the jurisdictional premises. "Formally verified" should be read
+  against that boundary.
+- **Preemption is asserted per-rule, not inferred.** The tool cannot look at
+  a federal scheme and conclude it occupies a field; a human decides. It also
+  models only field preemption, not conflict or obstacle preemption as
+  doctrines — those surface here only when they happen to coincide with a
+  deontic contradiction, as with the harboring pair.
 - **Single-variable conditions only.** `age >= 18` works; compound
   conditions and disjunctions don't. Conditions on different variables, or
   categorical ones, are excluded from candidates rather than guessed at.

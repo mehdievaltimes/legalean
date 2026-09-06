@@ -33,6 +33,21 @@ def scopes_overlap(scope_a: str, scope_b: str) -> bool:
 _ENCLOSING_ORDER = ("US Federal",)
 
 
+def strictly_encloses(outer: str, inner: str) -> bool:
+    """True if `outer` is a strictly larger jurisdiction containing `inner`.
+
+    Distinct from `scopes_overlap`, which is symmetric and reflexive. Field
+    preemption needs the asymmetric, irreflexive relation: a federal scheme
+    can displace a state rule, but not another federal rule, and no state
+    displaces another state.
+    """
+    if outer == inner:
+        return False
+    if not scopes_overlap(outer, inner):
+        return False
+    return outer in _ENCLOSING_ORDER and inner not in _ENCLOSING_ORDER
+
+
 def enclosing_first(scope_a: str, scope_b: str) -> bool:
     """True if scope_a should be presented before scope_b."""
     rank_a = _ENCLOSING_ORDER.index(scope_a) if scope_a in _ENCLOSING_ORDER else len(_ENCLOSING_ORDER)

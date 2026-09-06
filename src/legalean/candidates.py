@@ -36,7 +36,7 @@ from itertools import combinations
 from typing import Any, Optional
 
 from .models import Condition, Rule
-from .scopes import enclosing_first, scopes_overlap
+from .scopes import enclosing_first, scopes_overlap, strictly_encloses
 
 _STOPWORDS = {"of", "the", "a", "an", "in", "to", "by", "for", "and", "or"}
 
@@ -221,25 +221,58 @@ def _find_witness(cond_a: Condition, cond_b: Condition) -> Optional[Witness]:
     return None if value is None else Witness(value, "Int")
 
 
+CONTRADICTION = "contradiction"
+PREEMPTION = "preemption"
+
+
 @dataclass
 class Candidate:
-    """A structurally plausible conflict, pending Lean's formal verdict."""
+    """A structurally plausible conflict, pending Lean's formal verdict.
+
+    `kind` distinguishes the two shapes the tool can detect:
+
+    * CONTRADICTION -- the two rules assign incompatible deontic statuses to
+      the same act (allowed vs prohibited, prohibited vs required).
+    * PREEMPTION -- one sovereign claims the whole field, so the other's rule
+      is displaced *whatever it says*; `rule_a` is always the exclusive rule
+      and `rule_b` the displaced one.
+    """
 
     rule_a: Rule
     rule_b: Rule
     witness: Witness  # concrete value satisfying both conditions, plus its Lean type
+    kind: str = CONTRADICTION
+
+
+def _preemption_pair(rule_a: Rule, rule_b: Rule) -> Optional[tuple[Rule, Rule]]:
+    """Return (exclusive rule, displaced rule) if one rule occupies the field
+    the other regulates, else None.
+
+    Requires *strict* enclosure: a federal scheme displaces a state rule, but
+    a rule never preempts one of its own sovereign (a federal statute does
+    not preempt itself, and no state preempts another).
+    """
+    if rule_a.exclusive and strictly_encloses(rule_a.scope, rule_b.scope):
+        return rule_a, rule_b
+    if rule_b.exclusive and strictly_encloses(rule_b.scope, rule_a.scope):
+        return rule_b, rule_a
+    return None
 
 
 def find_candidates(rules: list[Rule]) -> list[Candidate]:
     """Return rule pairs worth generating a Lean conflict theorem for.
 
-    A candidate requires ALL of:
-      1. scopes overlap (e.g. US Federal law reaches into Arizona State)
-      2. same real-world regulated activity
-      3. actions are logically contradictory (allowed vs prohibited, etc.)
-      4. a concrete witness can be constructed for both conditions -- they
-         are unconditional, or on the same variable at the same type, and
-         provably overlap
+    Every candidate requires the same real-world regulated activity and a
+    constructible witness (both conditions provably apply to some common
+    case). Beyond that there are two shapes:
+
+    CONTRADICTION -- scopes overlap, and the actions are logically
+    contradictory (allowed vs prohibited, or prohibited vs required).
+
+    PREEMPTION -- one rule is marked `exclusive` and its scope strictly
+    encloses the other's. Actions are irrelevant here: the displaced rule
+    conflicts by existing in the occupied field, even if it agrees. Where
+    both shapes would fire, only the preemption candidate is emitted.
 
     This is NOT the final verdict -- it's the set of pairs handed to
     leangen.py / leanverify.py for actual formal verification.
@@ -248,19 +281,35 @@ def find_candidates(rules: list[Rule]) -> list[Candidate]:
     for rule_a, rule_b in combinations(rules, 2):
         if rule_a.source_id == rule_b.source_id:
             continue
-        if not scopes_overlap(rule_a.scope, rule_b.scope):
-            continue
         if not _same_activity(rule_a.activity, rule_b.activity):
             continue
-        if not _contradictory_actions(rule_a.action, rule_b.action):
-            continue
+
         witness = _find_witness(rule_a.condition, rule_b.condition)
         if witness is None:
             continue  # no constructible overlap witness (see _find_witness docstring for why)
+
+        # Field preemption first: it needs no incompatible actions, and where
+        # it applies it is dispositive regardless of what the displaced rule
+        # says, so emitting a second contradiction candidate for the same pair
+        # would be noise.
+        preemption = _preemption_pair(rule_a, rule_b)
+        if preemption is not None:
+            exclusive_rule, displaced_rule = preemption
+            candidates.append(
+                Candidate(
+                    rule_a=exclusive_rule, rule_b=displaced_rule, witness=witness, kind=PREEMPTION
+                )
+            )
+            continue
+
+        if not scopes_overlap(rule_a.scope, rule_b.scope):
+            continue
+        if not _contradictory_actions(rule_a.action, rule_b.action):
+            continue
         # Present the enclosing jurisdiction first -- readability only, not a
         # statement about which rule prevails (see scopes.enclosing_first).
         first, second = (
             (rule_a, rule_b) if enclosing_first(rule_a.scope, rule_b.scope) else (rule_b, rule_a)
         )
-        candidates.append(Candidate(rule_a=first, rule_b=second, witness=witness))
+        candidates.append(Candidate(rule_a=first, rule_b=second, witness=witness, kind=CONTRADICTION))
     return candidates

@@ -69,7 +69,16 @@ RULE_JSON_SCHEMA = {
         },
         "scope": {
             "type": "string",
-            "description": "Jurisdiction/context the rule is in force in, e.g. 'US Federal', 'NY State'.",
+            "description": "Jurisdiction/context the rule is in force in, e.g. 'US Federal', 'Arizona State'.",
+        },
+        "exclusive": {
+            "type": "boolean",
+            "description": (
+                "Optional, default false. True when this sovereign occupies the whole "
+                "field, displacing any rule on the same activity from an enclosed "
+                "jurisdiction even one that agrees. This encodes a judicial holding, "
+                "not statutory text -- see README."
+            ),
         },
     },
 }
@@ -173,6 +182,11 @@ class Rule:
     condition: Condition
     action: Action
     scope: str
+    # True when this rule's sovereign claims the whole regulatory field, so
+    # that ANY rule from an enclosed jurisdiction on the same activity is
+    # displaced regardless of what it says. See README -- unlike every other
+    # field, this one encodes a judicial holding rather than statutory text.
+    exclusive: bool = False
 
     @staticmethod
     def from_dict(source_id: str, d: dict[str, Any]) -> "Rule":
@@ -183,6 +197,7 @@ class Rule:
             condition=Condition.from_dict(d["condition"]),
             action=d["action"],
             scope=d["scope"],
+            exclusive=bool(d.get("exclusive", False)),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -193,7 +208,12 @@ class Rule:
             "condition": self.condition.to_dict(),
             "action": self.action,
             "scope": self.scope,
+            "exclusive": self.exclusive,
         }
 
     def as_text(self) -> str:
-        return f"[{self.scope}] {self.subject}: {self.action} to {self.activity} if {self.condition.as_text()}"
+        exclusive = " [exclusive field]" if self.exclusive else ""
+        return (
+            f"[{self.scope}] {self.subject}: {self.action} to {self.activity} "
+            f"if {self.condition.as_text()}{exclusive}"
+        )

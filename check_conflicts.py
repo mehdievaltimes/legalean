@@ -30,7 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from legalean.candidates import find_candidates  # noqa: E402
+from legalean.candidates import PREEMPTION, find_candidates  # noqa: E402
 from legalean.corpus import load_corpus  # noqa: E402
 from legalean.leangen import generate_conflict_files  # noqa: E402
 from legalean.leanverify import verify_all  # noqa: E402
@@ -67,7 +67,15 @@ def check_lean_toolchain() -> None:
 def build_lean_library() -> None:
     """Compile lean/Legalean/Deontic.lean (+ smoke tests) so per-candidate
     files can import it. Cheap/no-op after the first run; no network access
-    needed (no external Lean dependencies -- just core Lean's `omega`)."""
+    needed (no external Lean dependencies -- just core Lean's `omega`).
+
+    Generated conflict files sit inside the same Lake library glob, so any
+    left over from a previous `--keep-lean-files` run would be compiled by
+    this build -- and a stale or intentionally-unprovable one would fail it.
+    They are regenerated from scratch every run, so clear them first.
+    """
+    for stale in LEAN_CONFLICTS_DIR.glob("*.lean"):
+        stale.unlink()
     proc = subprocess.run(["lake", "build"], cwd=LEAN_DIR, capture_output=True, text=True)
     if proc.returncode != 0:
         print("error: `lake build` failed for the lean/ project:\n" + proc.stdout + proc.stderr, file=sys.stderr)
@@ -90,18 +98,29 @@ def print_report(results, statutes_by_id: dict[str, Statute], n_rules: int, n_ca
         a, b = result.generated.candidate.rule_a, result.generated.candidate.rule_b
         stmt_a, stmt_b = statutes_by_id[a.source_id], statutes_by_id[b.source_id]
 
-        print(f"Conflict #{i}  (Lean theorem: {result.generated.theorem_name})")
+        is_preemption = result.generated.candidate.kind == PREEMPTION
+        label = "Field preemption" if is_preemption else "Contradiction"
+        print(f"Conflict #{i}  [{label}]  (Lean theorem: {result.generated.theorem_name})")
         print("-" * 88)
-        print(f"  Source A: {stmt_a.citation}")
+        role_a, role_b = ("Occupies field", "Displaced") if is_preemption else ("Source A", "Source B")
+        print(f"  {role_a}: {stmt_a.citation}")
         print(f"            {a.as_text()}")
-        print(f"  Source B: {stmt_b.citation}")
+        print(f"  {role_b}: {stmt_b.citation}")
         print(f"            {b.as_text()}")
         print()
-        print(
-            f"  Contradiction: {a.scope} says the activity is {a.action}, but {b.scope} says it is "
-            f"{b.action}, for an overlapping case -- Lean formally verified these two rules, taken "
-            f"together, are logically inconsistent."
-        )
+        if is_preemption:
+            print(
+                f"  Field preemption: {a.scope} claims this field exclusively, while {b.scope} "
+                f"also regulates it. The two are incompatible regardless of what the {b.scope} "
+                f"rule says -- here both call the act {b.action}, and they still collide. Lean "
+                f"formally verified the incompatibility."
+            )
+        else:
+            print(
+                f"  Contradiction: {a.scope} says the activity is {a.action}, but {b.scope} says it is "
+                f"{b.action}, for an overlapping case -- Lean formally verified these two rules, taken "
+                f"together, are logically inconsistent."
+            )
         print("=" * 88)
 
 
