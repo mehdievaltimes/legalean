@@ -6,6 +6,8 @@
 [![dependencies: none](https://img.shields.io/badge/dependencies-none-4C9A2A)](requirements.txt)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
+**[Project page →](https://mehdievaltimes.github.io/legalean/)**
+
 A small end-to-end tool that turns statutory text into structured logical
 rules and **formally verifies** contradictions between them using Lean 4 --
 not a Python heuristic, an actual machine-checked proof.
