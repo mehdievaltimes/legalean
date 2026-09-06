@@ -18,9 +18,15 @@ Operator = Literal[">=", ">", "<=", "<", "==", "!="]
 ACTIONS = ("allowed", "prohibited", "required")
 
 # Matches the compact condition syntax used in statute-markdown frontmatter,
-# e.g. `age >= 18` or `basis == "residence"`. Order matters: two-character
-# operators must be tried before their one-character prefixes.
-_CONDITION_RE = re.compile(r'^(\w+)\s*(>=|<=|==|!=|>|<)\s*(-?\d+|"[^"]*")$')
+# e.g. `age >= 18`, `religious_volunteer == true`, `basis == "residence"`.
+# Order matters: two-character operators must be tried before their
+# one-character prefixes.
+_CONDITION_RE = re.compile(r'^(\w+)\s*(>=|<=|==|!=|>|<)\s*(-?\d+|"[^"]*"|true|false)$')
+
+# Categorical (non-numeric) values admit only equality and inequality --
+# "basis > 'residence'" is meaningless, so it is rejected at parse time
+# rather than silently producing an unprovable Lean goal.
+_EQUALITY_OPERATORS = ("==", "!=")
 
 # Documented JSON schema the extraction LLM call must satisfy (informal --
 # expressed as a plain dict since we keep dependencies minimal and avoid
@@ -97,9 +103,15 @@ class Condition:
         return self.variable is None or self.operator is None
 
     def as_text(self) -> str:
+        """Render back to the compact frontmatter syntax; inverse of from_text."""
         if self.is_unconditional:
             return "always"
-        val = f"'{self.value}'" if isinstance(self.value, str) else self.value
+        if isinstance(self.value, bool):  # check before int -- bool is an int subclass
+            val = "true" if self.value else "false"
+        elif isinstance(self.value, str):
+            val = f'"{self.value}"'
+        else:
+            val = str(self.value)
         return f"{self.variable} {self.operator} {val}"
 
     @staticmethod
@@ -114,28 +126,39 @@ class Condition:
     def from_text(text: str) -> "Condition":
         """Parse the compact form used in statute-markdown frontmatter.
 
-        `always`      -> unconditional
-        `age >= 18`   -> numeric predicate
-        `basis == "residence"` -> categorical predicate (parsed, but excluded
-                                  from Lean candidates -- see candidates.py)
+        `always`                        -> unconditional
+        `age >= 18`                     -> numeric predicate
+        `religious_volunteer == true`   -> boolean predicate
+        `basis == "residence"`          -> string predicate
 
         The inverse of `as_text()`, so a corpus round-trips.
         """
         text = text.strip()
-        if text in ("always", "true", ""):
+        if text in ("always", ""):
             return Condition(variable=None, operator=None, value=None)
 
         match = _CONDITION_RE.match(text)
         if not match:
             raise ValueError(
                 f"cannot parse condition {text!r}; expected 'always' or "
-                f"'<variable> <op> <number|\"string\">' with op in >=, >, <=, <, ==, !="
+                f"'<variable> <op> <number|true|false|\"string\">' with op in "
+                f">=, >, <=, <, ==, !="
             )
         variable, operator, raw_value = match.groups()
+        value: Any
         if raw_value.startswith('"'):
-            value: Any = raw_value[1:-1]
+            value = raw_value[1:-1]
+        elif raw_value in ("true", "false"):
+            value = raw_value == "true"
         else:
             value = int(raw_value)
+
+        if not isinstance(value, int) or isinstance(value, bool):
+            if operator not in _EQUALITY_OPERATORS:
+                raise ValueError(
+                    f"condition {text!r}: operator {operator!r} needs a numeric value; "
+                    f"categorical values support only {' and '.join(_EQUALITY_OPERATORS)}"
+                )
         return Condition(variable=variable, operator=operator, value=value)
 
     def to_dict(self) -> dict[str, Any]:

@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from .candidates import Candidate
+from .candidates import Candidate, Witness
 from .models import Condition, Rule, Statute
 
 _ACTION_TO_LEAN = {"allowed": "Allowed", "prohibited": "Prohibited", "required": "Required"}
@@ -42,18 +42,38 @@ def _sanitize(source_id: str) -> str:
     return re.sub(r"[^a-zA-Z0-9_]", "_", source_id)
 
 
-def _hypothesis_and_proof(rule: Rule, label: str, witness: int) -> tuple[str, str]:
-    """Return (hypothesis type as Lean text, proof term instantiating it at `witness`)."""
+def _lean_literal(value: object) -> str:
+    """Render a witness or condition value as Lean source."""
+    if isinstance(value, bool):  # must precede int -- bool is an int subclass
+        return "true" if value else "false"
+    if isinstance(value, str):
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    if isinstance(value, int) and value < 0:
+        return f"({value})"  # keep unary minus from binding oddly in application position
+    return str(value)
+
+
+def _hypothesis_and_proof(rule: Rule, label: str, witness: Witness) -> tuple[str, str]:
+    """Return (hypothesis type as Lean text, proof term instantiating it at `witness`).
+
+    The premise is discharged by `trivial` when the rule is unconditional,
+    `omega` for linear integer arithmetic, and `decide` for Bool/String
+    equality -- all three are core Lean, no mathlib.
+    """
     action_lean = _ACTION_TO_LEAN[rule.action]
+    ty = witness.lean_type
+    literal = _lean_literal(witness.value)
     cond: Condition = rule.condition
+
     if cond.is_unconditional:
-        hyp = f"(∀ x : Int, True → {action_lean} (Activity x))"
-        proof = f"{label} {witness} trivial"
-    else:
-        op = _OPERATOR_TO_LEAN[cond.operator]
-        hyp = f"(∀ x : Int, x {op} {cond.value} → {action_lean} (Activity x))"
-        proof = f"{label} {witness} (by omega)"
-    return hyp, proof
+        hyp = f"(∀ x : {ty}, True → {action_lean} (Activity x))"
+        return hyp, f"{label} {literal} trivial"
+
+    op = _OPERATOR_TO_LEAN[cond.operator]
+    hyp = f"(∀ x : {ty}, x {op} {_lean_literal(cond.value)} → {action_lean} (Activity x))"
+    tactic = "by omega" if ty == "Int" else "by decide"
+    return hyp, f"{label} {literal} ({tactic})"
 
 
 def render_conflict_theorem(candidate: Candidate, statutes_by_id: dict[str, Statute]) -> str:
@@ -71,6 +91,10 @@ def render_conflict_theorem(candidate: Candidate, statutes_by_id: dict[str, Stat
 
     hyp_a, proof_a = _hypothesis_and_proof(first_rule, "ruleA", candidate.witness)
     hyp_b, proof_b = _hypothesis_and_proof(second_rule, "ruleB", candidate.witness)
+
+    # Both rules quantify over the same carrier type, fixed by the witness.
+    ty = candidate.witness.lean_type
+    witness_literal = _lean_literal(candidate.witness.value)
 
     theorem_name = f"conflict_{_sanitize(a.source_id)}_vs_{_sanitize(b.source_id)}"
 
@@ -91,13 +115,13 @@ overlap at the chosen witness) -- see leanverify.py, which treats a
 compile failure as "not a confirmed conflict", not an error.
 -/
 
-private def Activity (_x : Int) : Prop := True
+private def Activity (_x : {ty}) : Prop := True
 
 theorem {theorem_name}
     (ruleA : {hyp_a})
     (ruleB : {hyp_b}) :
     False :=
-  {axiom_name} (Activity {candidate.witness}) ({proof_a}) ({proof_b})
+  {axiom_name} (Activity {witness_literal}) ({proof_a}) ({proof_b})
 """
 
 

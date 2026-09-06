@@ -22,7 +22,7 @@ third-party Python packages.**
 law — principally Arizona's S.B. 1070, partly struck down in *Arizona v.
 United States*, 567 U.S. 387 (2012), plus Texas's school-enrollment statute
 struck down in *Plyler v. Doe*, 457 U.S. 202 (1982), and Alabama's H.B. 56.
-Seventeen excerpts across four jurisdictions cover nine real pairings, chosen
+Eighteen excerpts across four jurisdictions cover nine real pairings, chosen
 so that every branch of the tool's logic is exercised against actual law:
 
 | Pairing | Actions | Tool says | Courts said |
@@ -35,15 +35,21 @@ so that every branch of the tool's logic is exercised against actual law:
 | Federal voluntary E-Verify ↔ Legal Arizona Workers Act | allowed / required | compatible, no conflict | state law upheld (*Whiting*) |
 | Federal status-check cooperation ↔ S.B. 1070 § 2(B) | allowed / required | compatible, no conflict | § 2(B) upheld on its face |
 | Federal alien registration ↔ S.B. 1070 § 3 | prohibited / prohibited | nothing (false negative) | § 3 preempted — *field* preemption |
-| Federal harboring ↔ A.R.S. § 13-2929 | prohibited / prohibited | nothing (false negative) | enjoined — *conflict* preemption |
+| Federal harboring safe harbor ↔ A.R.S. § 13-2929 | allowed / prohibited | **conflict** (Lean-verified) | enjoined — *conflict* preemption |
 
-The last two rows are the honest part, and they fail for two *different*
-reasons. The registration pair is invisible because the tool cannot model
-**field preemption** (a duplicate state law is still void when Congress
-occupied the field). The harboring pair is invisible because the federal
-rule's religious safe harbor — the very thing the Ninth Circuit's conflict
-analysis turned on — was **dropped in formalization**. Both are kept in the
+The registration row is the honest part: the tool **cannot** model field
+preemption, where a duplicate state law is still void because Congress
+occupied the field, so it correctly finds nothing there. It is kept in the
 corpus rather than hidden. See Limitations.
+
+The harboring row used to be a second such miss, and it is worth saying why
+it no longer is. The federal statute's religious safe harbor —
+8 U.S.C. § 1324(a)(1)(C), the very thing the Ninth Circuit's conflict
+analysis turned on — was originally flattened away by formalizing the
+federal rule as an unconditional `prohibited`. Adding **categorical
+conditions** let the exemption be carried (`religious_volunteer == true`),
+and the conflict is now found and proved. That is the intended arc: a
+documented limitation, then the capability that removes it.
 
 ## Framing
 
@@ -77,7 +83,7 @@ candidates --[Lean codegen]--> lean/Legalean/Conflicts/*.lean
    citation: Ariz. Rev. Stat. § 13-2928(C) (S.B. 1070 § 5(C))
    subject: unauthorized alien
    activity: seeking or engaging in unauthorized employment
-   condition: always          # or a predicate, e.g. `age >= 18`
+   condition: always          # or `age >= 18`, `flag == true`, `basis == "x"`
    action: prohibited         # allowed | prohibited | required
    scope: Arizona State
    ---
@@ -125,7 +131,7 @@ axiom prohibited_required_excl (p : Prop) : Prohibited p → Required p → Fals
 ```
 
 The modalities are opaque; the only facts Lean knows are those two
-exclusions. Both are load-bearing on real law: four conflicts close with
+exclusions. Both are load-bearing on real law: five conflicts close with
 `allowed_prohibited_excl`, and the Alabama school-status pair closes with
 `prohibited_required_excl`. Meanwhile `allowed`/`required` is deliberately
 **not** exclusive — a mandatory act is trivially a permitted one — which is
@@ -160,6 +166,25 @@ theorem conflict_us_const_equal_protection_education_vs_tx_educ_code_21_031
 `6` is the witness `candidates.py` computes for `age > 5`; Lean re-checks
 that it really satisfies the premise rather than taking Python's word.
 
+**Categorical conditions** (boolean and string) quantify over `Bool` or
+`String` instead of `Int` and discharge with `decide`, still core Lean. This
+is what lets the federal harboring safe harbor be formalized as
+`religious_volunteer == true`:
+
+```lean
+private def Activity (_x : Bool) : Prop := True
+
+theorem conflict_us_ina_harboring_religious_exemption_vs_az_sb1070_13_2929
+    (ruleA : (∀ x : Bool, x = true → Allowed (Activity x)))
+    (ruleB : (∀ x : Bool, True → Prohibited (Activity x))) :
+    False :=
+  allowed_prohibited_excl (Activity true) (ruleA true (by decide)) (ruleB true trivial)
+```
+
+The carrier type is fixed by the witness, so both rules in a pair must be
+formalized at the same type; a variable given a number on one side and a
+string on the other yields no candidate rather than a bogus one.
+
 ## Running it
 
 Requires Python 3.10+ and the Lean 4 toolchain (`elan`, providing
@@ -180,7 +205,7 @@ It runs `lake build` once (compiles the axioms module; no network, no
 external Lean dependencies), then generates and compiles one Lean file per
 candidate.
 
-Expected output: 17 rules loaded, 5 candidates checked, 5 formally verified
+Expected output: 18 rules loaded, 6 candidates checked, 6 formally verified
 conflicts.
 
 Flags: `--statutes <dir>` to point at a different corpus,
@@ -233,7 +258,7 @@ for the axiom system itself.
 
 ## Limitations
 
-- **Small, curated corpus.** Seventeen excerpts across four jurisdictions,
+- **Small, curated corpus.** Eighteen excerpts across four jurisdictions,
   one provision per file, chosen to exercise the logic. Not a survey of
   immigration law.
 - **Constitutional rules fit the schema worst.** *Plyler*'s rule is a

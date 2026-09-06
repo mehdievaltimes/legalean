@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from legalean.candidates import find_candidates  # noqa: E402
+from legalean.candidates import _find_witness, find_candidates  # noqa: E402
 from legalean.corpus import load_corpus  # noqa: E402
 from legalean.models import Condition, Rule  # noqa: E402
 from legalean.scopes import scopes_overlap  # noqa: E402
@@ -38,7 +38,7 @@ def rule(source_id, subject, activity, condition, action, scope) -> Rule:
 
 def test_corpus_loads_and_has_expected_candidates():
     statutes, rules = load_corpus(STATUTES_DIR)
-    assert len(rules) == len(statutes) == 17, f"expected 17 excerpts, got {len(statutes)}"
+    assert len(rules) == len(statutes) == 18, f"expected 18 excerpts, got {len(statutes)}"
 
     candidates = find_candidates(rules)
     pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in candidates}
@@ -47,7 +47,8 @@ def test_corpus_loads_and_has_expected_candidates():
     assert frozenset({"us-ina-warrantless-arrest-federal-only", "az-sb1070-6"}) in pairs
     assert frozenset({"us-const-equal-protection-education", "tx-educ-code-21-031"}) in pairs
     assert frozenset({"us-const-equal-protection-school-status-check", "al-hb56-28"}) in pairs
-    assert len(candidates) == 5, f"expected exactly 5 candidates in the corpus, got {len(candidates)}"
+    assert frozenset({"us-ina-harboring-religious-exemption", "az-sb1070-13-2929"}) in pairs
+    assert len(candidates) == 6, f"expected exactly 6 candidates in the corpus, got {len(candidates)}"
 
 
 def test_one_federal_rule_fans_out_to_multiple_states():
@@ -90,7 +91,8 @@ def test_corpus_numeric_condition_pair_gets_a_witness():
         if {c.rule_a.source_id, c.rule_b.source_id}
         == {"us-const-equal-protection-education", "tx-educ-code-21-031"}
     )
-    assert plyler.witness == 6, f"expected witness 6 for `age > 5`, got {plyler.witness}"
+    assert plyler.witness.value == 6, f"expected witness 6 for `age > 5`, got {plyler.witness}"
+    assert plyler.witness.lean_type == "Int"
 
 
 def test_corpus_spans_four_jurisdictions():
@@ -111,14 +113,78 @@ def test_corpus_compatible_pairs_are_not_candidates():
     assert frozenset({"us-ina-state-cooperation-permitted", "az-sb1070-2b"}) not in pairs
 
 
-def test_corpus_documented_false_negatives_stay_silent():
-    """Both sides are `prohibited` in each pair, so this tool finds nothing.
-    One is field preemption (registration), one is a dropped federal exemption
-    (harboring) -- see README limitations."""
+def test_corpus_field_preemption_stays_a_documented_false_negative():
+    """The registration pair is both-`prohibited`, and field preemption is not
+    modeled, so the tool correctly finds nothing -- see README limitations."""
     _, rules = load_corpus(STATUTES_DIR)
     pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in find_candidates(rules)}
     assert frozenset({"us-ina-alien-registration", "az-sb1070-3"}) not in pairs
-    assert frozenset({"us-ina-harboring", "az-sb1070-13-2929"}) not in pairs
+
+
+def test_general_rule_is_not_flagged_against_its_own_exception():
+    """The federal harboring prohibition carries `religious_volunteer != true`
+    and its safe harbor carries `== true`. They partition the space, so no
+    witness exists and no candidate is generated -- if the general rule were
+    left unqualified, the statute would appear to contradict itself."""
+    _, rules = load_corpus(STATUTES_DIR)
+    by_id = {r.source_id: r for r in rules}
+    general, exception = by_id["us-ina-harboring"], by_id["us-ina-harboring-religious-exemption"]
+    assert general.action == "prohibited" and exception.action == "allowed"
+    assert general.scope == exception.scope and general.activity == exception.activity
+    assert _find_witness(general.condition, exception.condition) is None
+
+    pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in find_candidates(rules)}
+    assert frozenset({"us-ina-harboring", "us-ina-harboring-religious-exemption"}) not in pairs
+
+
+def test_categorical_boolean_conflict_has_a_bool_witness():
+    """The harboring safe-harbor conflict is the corpus's categorical case."""
+    _, rules = load_corpus(STATUTES_DIR)
+    pair = next(
+        c
+        for c in find_candidates(rules)
+        if {c.rule_a.source_id, c.rule_b.source_id}
+        == {"us-ina-harboring-religious-exemption", "az-sb1070-13-2929"}
+    )
+    assert pair.witness.lean_type == "Bool"
+    assert pair.witness.value is True
+
+
+def test_string_conditions_are_supported():
+    a = rule("a", "student", "granting in-state tuition", ("basis", "==", "residence"), "allowed", "US Federal")
+    b = rule("b", "student", "granting in-state tuition", (None, None, None), "prohibited", "Arizona State")
+    candidates = find_candidates([a, b])
+    assert len(candidates) == 1
+    assert candidates[0].witness.lean_type == "String"
+    assert candidates[0].witness.value == "residence"
+
+
+def test_incompatible_string_equalities_are_not_a_candidate():
+    a = rule("a", "student", "granting X", ("basis", "==", "residence"), "allowed", "US Federal")
+    b = rule("b", "student", "granting X", ("basis", "==", "domicile"), "prohibited", "Arizona State")
+    assert find_candidates([a, b]) == []
+
+
+def test_mismatched_condition_types_are_not_a_candidate():
+    """Same variable formalized as a number on one side and a string on the
+    other is a formalization error, not a conflict -- excluded, not guessed at."""
+    a = rule("a", "x", "some activity", ("basis", "==", 3), "allowed", "US Federal")
+    b = rule("b", "x", "some activity", ("basis", "==", "three"), "prohibited", "Arizona State")
+    assert find_candidates([a, b]) == []
+
+
+def test_ordering_operator_on_categorical_value_is_rejected():
+    for bad in ('basis > "residence"', "flag >= true"):
+        try:
+            Condition.from_text(bad)
+        except ValueError:
+            continue
+        raise AssertionError(f"expected {bad!r} to be rejected")
+
+
+def test_condition_round_trip_covers_every_kind():
+    for text in ("always", "age >= 18", "religious_volunteer == true", 'basis != "residence"'):
+        assert Condition.from_text(text).as_text() == text
 
 
 def test_corpus_round_trips_conditions():
@@ -135,7 +201,7 @@ def test_classic_overlapping_age_gate_is_a_candidate_with_a_witness():
     b = rule("b", "minor", "drinking alcohol", ("age", "<", 21), "prohibited", "US Federal")
     candidates = find_candidates([a, b])
     assert len(candidates) == 1
-    assert candidates[0].witness == 18
+    assert candidates[0].witness.value == 18
 
 
 def test_non_overlapping_age_ranges_are_not_a_candidate():

@@ -18,7 +18,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from legalean.candidates import Candidate, find_candidates  # noqa: E402
+from legalean.candidates import Candidate, Witness, find_candidates  # noqa: E402
 from legalean.corpus import load_corpus  # noqa: E402
 from legalean.leangen import generate_conflict_files  # noqa: E402
 from legalean.leanverify import verify_all  # noqa: E402
@@ -56,11 +56,11 @@ def test_corpus_conflicts_are_formally_verified():
     statutes, rules = load_corpus(STATUTES_DIR)
     statutes_by_id = {s.id: s for s in statutes}
     candidates = find_candidates(rules)
-    assert len(candidates) == 5
+    assert len(candidates) == 6
 
     generated = generate_conflict_files(candidates, statutes_by_id, SCRATCH_DIR)
     results = verify_all(generated, LEAN_DIR)
-    assert len(results) == 5
+    assert len(results) == 6
     for result in results:
         assert result.verified, f"Lean rejected a conflict expected to be provable: {result.stderr}"
 
@@ -103,6 +103,41 @@ def test_numeric_condition_proof_uses_omega():
     assert verify_all(generated, LEAN_DIR)[0].verified
 
 
+def test_categorical_bool_proof_uses_decide():
+    """The harboring safe-harbor conflict quantifies over Bool, so its proof
+    must discharge the premise with `decide` and compile."""
+    statutes, rules = load_corpus(STATUTES_DIR)
+    statutes_by_id = {s.id: s for s in statutes}
+    pair = [
+        c
+        for c in find_candidates(rules)
+        if {c.rule_a.source_id, c.rule_b.source_id}
+        == {"us-ina-harboring-religious-exemption", "az-sb1070-13-2929"}
+    ]
+    assert len(pair) == 1
+    generated = generate_conflict_files(pair, statutes_by_id, SCRATCH_DIR)
+    source = generated[0].path.read_text(encoding="utf-8")
+    assert "∀ x : Bool" in source, "expected the Bool carrier type"
+    assert "by decide" in source and "by omega" not in source
+    assert verify_all(generated, LEAN_DIR)[0].verified
+
+
+def test_string_conditions_compile_end_to_end():
+    """No corpus rule uses a string condition yet, so prove the String path
+    works by generating and compiling one."""
+    a = rule("a", "student", "granting in-state tuition", ("basis", "==", "residence"), "allowed", "US Federal")
+    b = rule("b", "student", "granting in-state tuition", ("basis", "!=", "domicile"), "prohibited", "Arizona State")
+    candidates = find_candidates([a, b])
+    assert len(candidates) == 1 and candidates[0].witness.lean_type == "String"
+    statutes_by_id = {
+        i: Statute(id=i, jurisdiction="test", citation=f"test-{i}", raw_text="test") for i in ("a", "b")
+    }
+    generated = generate_conflict_files(candidates, statutes_by_id, SCRATCH_DIR)
+    source = generated[0].path.read_text(encoding="utf-8")
+    assert '∀ x : String' in source and '"residence"' in source
+    assert verify_all(generated, LEAN_DIR)[0].verified
+
+
 def test_generated_header_pairs_each_citation_with_its_own_rule():
     """Regression: the exclusion axiom fixes hypothesis order, which need not match
     candidate order -- the header must not pair ruleA's citation with ruleB's rule."""
@@ -136,7 +171,7 @@ def test_genuinely_non_overlapping_candidate_is_rejected_by_lean():
     # Lean itself -- not just the Python heuristic -- refuses a false conflict claim.
     a = rule("a", "adult", "possession of X", ("age", ">=", 21), "allowed", "Arizona State")
     b = rule("b", "minor", "possession of X", ("age", "<", 21), "prohibited", "Arizona State")
-    fake_candidate = Candidate(rule_a=a, rule_b=b, witness=21)  # 21 satisfies neither jointly
+    fake_candidate = Candidate(rule_a=a, rule_b=b, witness=Witness(21, "Int"))  # satisfies neither jointly
     statutes_by_id = {
         "a": Statute(id="a", jurisdiction="Arizona State", citation="test", raw_text="test"),
         "b": Statute(id="b", jurisdiction="Arizona State", citation="test", raw_text="test"),
@@ -145,6 +180,20 @@ def test_genuinely_non_overlapping_candidate_is_rejected_by_lean():
     results = verify_all(generated, LEAN_DIR)
     assert len(results) == 1
     assert not results[0].verified, "Lean should have rejected a witness that satisfies neither condition"
+
+
+def test_false_categorical_witness_is_rejected_by_lean():
+    """The categorical analogue of the numeric check above: `false` does not
+    satisfy `x = true`, and `decide` must refuse to prove that it does --
+    otherwise the guarantee would be hollow for categorical conditions."""
+    a = rule("a", "s", "act", ("flag", "==", True), "allowed", "US Federal")
+    b = rule("b", "s", "act", (None, None, None), "prohibited", "Arizona State")
+    bad = Candidate(rule_a=a, rule_b=b, witness=Witness(False, "Bool"))
+    statutes_by_id = {
+        i: Statute(id=i, jurisdiction="test", citation=f"test-{i}", raw_text="test") for i in ("a", "b")
+    }
+    results = verify_all(generate_conflict_files([bad], statutes_by_id, SCRATCH_DIR), LEAN_DIR)
+    assert not results[0].verified, "Lean should have rejected a witness that fails the condition"
 
 
 def run_all():
