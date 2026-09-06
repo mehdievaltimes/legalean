@@ -7,6 +7,7 @@ activity: harboring or transporting an unlawfully present alien
 condition: religious_volunteer != true
 action: prohibited
 scope: US Federal
+exclusive: true
 ---
 
 # INA § 274(a) — federal harboring and transporting offenses
@@ -47,6 +48,29 @@ fixed that. Two consequences worth noting:
    admit no common witness, so no candidate is generated. A general rule and
    its exception are disjoint, not contradictory — but only if the general
    rule is written to say so.
+
+## `exclusive: true` — the second occupied field
+
+Four circuits have held that Congress occupies the field of alien harboring
+and transporting: the Ninth (*Valle del Sol v. Whiting*, 732 F.3d 1006, in a
+section headed "§ 13-2929 is Field Preempted"), the Eleventh (*GLAHR v.
+Governor of Georgia*, 691 F.3d 1250, 1264), the Fourth (*United States v.
+South Carolina*, 720 F.3d 518, 531), and the Third (*Lozano v. City of
+Hazleton*). The flag records that consensus.
+
+It makes this the corpus's **second** occupied field, distinct from alien
+registration — which is the point of marking it. The `exclusive` mechanism
+is not special-cased to one field.
+
+Note the consequence for [`az-sb1070-13-2929`](az-sb1070-13-2929.md): it now
+appears in **two** findings on independent grounds — displaced by this rule's
+field claim, and separately contradicting the religious safe harbor. That is
+faithful to *Valle del Sol*, which held it field preempted **and** conflict
+preempted in consecutive sections.
+
+The same caveat as the registration flag applies with more force here: the
+field claim is a judicial inference, not statutory text, and this one rests
+on circuit consensus rather than a Supreme Court holding.
 
 ## Status
 

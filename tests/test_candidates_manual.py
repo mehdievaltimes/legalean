@@ -50,7 +50,8 @@ def test_corpus_loads_and_has_expected_candidates():
     assert frozenset({"us-ina-harboring-religious-exemption", "az-sb1070-13-2929"}) in pairs
     assert frozenset({"us-ina-alien-registration", "az-sb1070-3"}) in pairs
     assert frozenset({"us-ina-alien-registration", "al-hb56-10"}) in pairs
-    assert len(candidates) == 8, f"expected exactly 8 candidates in the corpus, got {len(candidates)}"
+    assert frozenset({"us-ina-harboring", "az-sb1070-13-2929"}) in pairs
+    assert len(candidates) == 9, f"expected exactly 9 candidates in the corpus, got {len(candidates)}"
 
 
 def test_one_federal_rule_fans_out_to_multiple_states():
@@ -151,10 +152,41 @@ def test_parallel_state_registration_offenses_are_not_compared():
     assert frozenset({"az-sb1070-3", "al-hb56-10"}) not in pairs
 
 
-def test_only_one_corpus_rule_is_marked_exclusive():
-    """`exclusive` encodes a judicial holding, so it should stay rare and deliberate."""
+def test_exclusive_flags_stay_rare_and_deliberate():
+    """`exclusive` encodes a judicial holding, so each one is a deliberate act."""
     _, rules = load_corpus(STATUTES_DIR)
-    assert [r.source_id for r in rules if r.exclusive] == ["us-ina-alien-registration"]
+    assert sorted(r.source_id for r in rules if r.exclusive) == [
+        "us-ina-alien-registration",
+        "us-ina-harboring",
+    ]
+
+
+def test_preemption_covers_two_distinct_fields():
+    """The exclusive mechanism is not special-cased to one field: registration
+    and harboring are both occupied, by different federal rules."""
+    _, rules = load_corpus(STATUTES_DIR)
+    fields = {
+        c.rule_a.activity for c in find_candidates(rules) if c.kind == PREEMPTION
+    }
+    assert fields == {
+        "failing to carry alien registration document",
+        "harboring or transporting an unlawfully present alien",
+    }
+
+
+def test_one_provision_can_be_caught_on_two_independent_grounds():
+    """A.R.S. § 13-2929 is displaced by the federal field claim AND contradicts
+    the religious safe harbor -- which is how the Ninth Circuit decided it."""
+    _, rules = load_corpus(STATUTES_DIR)
+    against = {
+        (c.kind, c.rule_a.source_id)
+        for c in find_candidates(rules)
+        if "az-sb1070-13-2929" in {c.rule_a.source_id, c.rule_b.source_id}
+    }
+    assert against == {
+        (PREEMPTION, "us-ina-harboring"),
+        (CONTRADICTION, "us-ina-harboring-religious-exemption"),
+    }
 
 
 def test_preemption_needs_strict_enclosure():
