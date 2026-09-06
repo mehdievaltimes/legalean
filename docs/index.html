@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Legalean — formally verified statutory conflicts</title>
+<meta name="description" content="Turns statutory excerpts into deontic-logic rules and proves conflicts between them with the Lean 4 kernel.">
+<style>
+  :root {
+    --bg: #fbfaf8;
+    --panel: #ffffff;
+    --ink: #1c1b19;
+    --muted: #5f5c56;
+    --line: #e3e0d9;
+    --accent: #7a3b12;
+    --accent-soft: #f3e9e0;
+    --ok: #2f6b3d;
+    --warn: #8a6100;
+    --code-bg: #f5f3ef;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16151a;
+      --panel: #1e1d23;
+      --ink: #eceaf0;
+      --muted: #a5a1ac;
+      --line: #33313a;
+      --accent: #e0a56a;
+      --accent-soft: #2a2129;
+      --ok: #7fc08c;
+      --warn: #d8b25a;
+      --code-bg: #131218;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+  header { padding: 72px 0 44px; border-bottom: 1px solid var(--line); }
+  h1 { font-size: 44px; line-height: 1.1; margin: 0 0 14px; letter-spacing: -0.02em; }
+  .tagline { font-size: 20px; color: var(--muted); margin: 0 0 28px; max-width: 42em; }
+  .tagline strong { color: var(--ink); font-weight: 600; }
+  .links { display: flex; flex-wrap: wrap; gap: 10px; }
+  .btn {
+    display: inline-block; padding: 9px 16px; border-radius: 7px;
+    border: 1px solid var(--line); background: var(--panel);
+    color: var(--ink); text-decoration: none; font-size: 15px; font-weight: 500;
+  }
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .btn.primary:hover { opacity: 0.9; color: var(--bg); }
+  section { padding: 44px 0; border-bottom: 1px solid var(--line); }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 0.09em; color: var(--accent); margin: 0 0 20px; font-weight: 600; }
+  h3 { font-size: 18px; margin: 28px 0 10px; }
+  p { margin: 0 0 16px; }
+  p.lead { font-size: 17px; }
+  code { font-family: var(--mono); font-size: 0.9em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; }
+  pre {
+    background: var(--code-bg); border: 1px solid var(--line); border-radius: 9px;
+    padding: 16px 18px; overflow-x: auto; font-family: var(--mono);
+    font-size: 13.5px; line-height: 1.6; margin: 0 0 18px;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .pipeline { display: flex; flex-wrap: wrap; gap: 8px; align-items: stretch; margin-bottom: 20px; }
+  .step {
+    flex: 1 1 150px; background: var(--panel); border: 1px solid var(--line);
+    border-radius: 9px; padding: 13px 15px;
+  }
+  .step .n { font-family: var(--mono); font-size: 11px; color: var(--accent); display: block; margin-bottom: 5px; }
+  .step .t { font-weight: 600; font-size: 14.5px; display: block; margin-bottom: 3px; }
+  .step .d { font-size: 13px; color: var(--muted); line-height: 1.45; }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; min-width: 640px; }
+  th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  .verdict { font-weight: 600; white-space: nowrap; }
+  .v-conflict { color: var(--accent); }
+  .v-ok { color: var(--ok); }
+  .v-miss { color: var(--warn); }
+  .note {
+    background: var(--accent-soft); border-left: 3px solid var(--accent);
+    padding: 14px 18px; border-radius: 0 7px 7px 0; margin: 20px 0 0; font-size: 15px;
+  }
+  ul { padding-left: 20px; margin: 0 0 16px; }
+  li { margin-bottom: 9px; }
+  footer { padding: 32px 0 64px; color: var(--muted); font-size: 14px; }
+  footer a { color: var(--muted); }
+  a { color: var(--accent); }
+  @media (max-width: 620px) {
+    h1 { font-size: 34px; }
+    .tagline { font-size: 18px; }
+    header { padding: 48px 0 32px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Legalean</h1>
+  <p class="tagline">Turns statutory excerpts into deontic-logic rules and proves conflicts between them with the <strong>Lean 4 kernel</strong> — a machine-checked proof term, not a heuristic match.</p>
+  <div class="links">
+    <a class="btn primary" href="https://github.com/mehdievaltimes/legalean">Source on GitHub</a>
+    <a class="btn" href="https://github.com/mehdievaltimes/legalean/actions/workflows/ci.yml">CI status</a>
+    <a class="btn" href="https://github.com/mehdievaltimes/legalean/tree/master/statutes">The corpus</a>
+  </div>
+</header>
+
+<section>
+  <h2>What it does</h2>
+  <p class="lead">Two statutes can be read for years before anyone notices they cannot both be obeyed. Legalean takes hand-formalized statutory rules, finds pairs that are structurally plausible contradictions, generates a Lean 4 theorem claiming <code>False</code> from the two rules together, and reports the pair <em>only</em> if Lean's kernel accepts the proof.</p>
+  <p>The guarantee is deliberately narrow: Lean verifies that the <em>formalized</em> rules are logically inconsistent. It never verifies that the formalization is faithful to the statute — that part is human work, and each corpus file records where it compresses real doctrine.</p>
+  <p>The verification pipeline is stdlib-only Python plus Lean. No API key, no network access, no third-party Python packages.</p>
+</section>
+
+<section>
+  <h2>Pipeline</h2>
+  <div class="pipeline">
+    <div class="step"><span class="n">01</span><span class="t">Corpus</span><span class="d">One markdown file per excerpt; formalization in frontmatter, reasoning below it.</span></div>
+    <div class="step"><span class="n">02</span><span class="t">Pre-filter</span><span class="d">Pure Python. Overlapping scopes, same activity, contradictory actions, a constructible witness.</span></div>
+    <div class="step"><span class="n">03</span><span class="t">Codegen</span><span class="d">One self-contained Lean theorem per candidate pair.</span></div>
+    <div class="step"><span class="n">04</span><span class="t">Kernel</span><span class="d">Compiled with <code>lake env lean</code>. The compiler, not Python, returns the verdict.</span></div>
+  </div>
+  <p>The pre-filter does not decide whether two rules conflict — it decides which pairs are worth asking Lean about. If its witness does not really satisfy both conditions, Lean rejects the file and the pair is dropped.</p>
+
+  <h3>The axioms</h3>
+  <p>A tiny axiom set, not a large proof library. The modalities are opaque; the only facts Lean knows are the two exclusions:</p>
+<pre><code>axiom Allowed : Prop → Prop
+axiom Prohibited : Prop → Prop
+axiom Required : Prop → Prop
+
+axiom allowed_prohibited_excl (p : Prop) : Allowed p → Prohibited p → False
+axiom prohibited_required_excl (p : Prop) : Prohibited p → Required p → False</code></pre>
+  <p><code>allowed</code>/<code>required</code> is deliberately <em>not</em> exclusive — a mandatory act is trivially a permitted one — and two real pairs in the corpus depend on exactly that choice.</p>
+
+  <h3>A generated proof</h3>
+<pre><code>theorem conflict_us_ina_employment_noncriminalization_vs_az_sb1070_5c
+    (ruleA : (∀ x : Int, True → Allowed (Activity x)))
+    (ruleB : (∀ x : Int, True → Prohibited (Activity x))) :
+    False :=
+  allowed_prohibited_excl (Activity 0) (ruleA 0 trivial) (ruleB 0 trivial)</code></pre>
+  <p>Numeric conditions such as <code>age &gt;= 18</code> discharge with core Lean's <code>omega</code> decision procedure instead of <code>trivial</code> — no mathlib, just Lean 4 core.</p>
+</section>
+
+<section>
+  <h2>Results on real law</h2>
+  <p>The corpus covers federal immigration law against Arizona's S.B. 1070, the 2010 enforcement law partly struck down in <em>Arizona v. United States</em>, 567 U.S. 387 (2012). Twelve excerpts, chosen so every branch of the logic is exercised against actual statutes with known outcomes.</p>
+  <div class="tablewrap">
+  <table>
+    <thead><tr><th>Pairing</th><th>Actions</th><th>Tool says</th><th>Courts said</th></tr></thead>
+    <tbody>
+      <tr><td>Federal non-criminalization of unauthorized work ↔ S.B. 1070 § 5(C)</td><td>allowed / prohibited</td><td class="verdict v-conflict">conflict</td><td>§ 5(C) struck down</td></tr>
+      <tr><td>Federal officer-only warrantless arrest ↔ S.B. 1070 § 6</td><td>prohibited / allowed</td><td class="verdict v-conflict">conflict</td><td>§ 6 struck down</td></tr>
+      <tr><td>Federal voluntary E-Verify ↔ Legal Arizona Workers Act</td><td>allowed / required</td><td class="verdict v-ok">compatible</td><td>upheld (<em>Whiting</em>)</td></tr>
+      <tr><td>Federal status-check cooperation ↔ S.B. 1070 § 2(B)</td><td>allowed / required</td><td class="verdict v-ok">compatible</td><td>§ 2(B) upheld on its face</td></tr>
+      <tr><td>Federal alien registration ↔ S.B. 1070 § 3</td><td>prohibited / prohibited</td><td class="verdict v-miss">nothing</td><td>struck down — <em>field</em> preemption</td></tr>
+      <tr><td>Federal harboring ↔ S.B. 1070 § 5(A)</td><td>prohibited / prohibited</td><td class="verdict v-miss">nothing</td><td>struck down — <em>field</em> preemption</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="note">The last two rows are the honest part. Both provisions were struck down, and the tool correctly reports nothing about them: each merely <em>duplicates</em> the federal prohibition, so there is no logical contradiction to find. The defect is that Congress occupied the field. That needs a different rule field and new axioms — left unmodeled deliberately rather than modeled inaccurately, and kept in the corpus rather than hidden.</div>
+</section>
+
+<section>
+  <h2>Limitations</h2>
+  <ul>
+    <li><strong>Formalization is the weak link, and it is manual.</strong> Lean checks the formalized rules, never their fidelity to the statute. Each file's formalization notes record what it compresses.</li>
+    <li><strong>Field and obstacle preemption are not modeled</strong> — two documented false negatives, above.</li>
+    <li><strong>Single-variable conditions only.</strong> <code>age &gt;= 18</code> works; compound conditions and disjunctions do not, and are excluded from candidates rather than guessed at.</li>
+    <li><strong>Scope overlap is a hardcoded lookup</strong>, not real jurisdiction law. It knows only the jurisdictions in the corpus.</li>
+    <li><strong>Small, curated corpus.</strong> Twelve excerpts. Not a survey of immigration law.</li>
+    <li><strong>Not legal advice.</strong> "Formally verified" is a much narrower claim than "these statutes conflict as a matter of law." The tool knows nothing of severability, amendment, repeal, standing, or remedy.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Running it</h2>
+  <p>Python 3.10+ and the Lean 4 toolchain (<code>elan</code>, providing <code>lean</code>/<code>lake</code>). No <code>pip install</code> is needed for the verification path.</p>
+<pre><code>git clone https://github.com/mehdievaltimes/legalean
+cd legalean
+python3 check_conflicts.py</code></pre>
+  <p>Expected output: 12 rules loaded, 2 candidates checked, 2 formally verified conflicts. CI runs exactly this on every push, so the build badge reflects proofs that actually compile on a clean machine.</p>
+</section>
+
+<footer>
+  <p>MIT licensed · <a href="https://github.com/mehdievaltimes/legalean">github.com/mehdievaltimes/legalean</a></p>
+</footer>
+
+</div>
+</body>
+</html>
