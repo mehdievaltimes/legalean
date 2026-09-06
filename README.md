@@ -22,7 +22,7 @@ third-party Python packages.**
 law — principally Arizona's S.B. 1070, partly struck down in *Arizona v.
 United States*, 567 U.S. 387 (2012), plus Texas's school-enrollment statute
 struck down in *Plyler v. Doe*, 457 U.S. 202 (1982), and Alabama's H.B. 56.
-Eighteen excerpts across four jurisdictions cover nine real pairings, chosen
+Nineteen excerpts across four jurisdictions cover ten real pairings, chosen
 so that every branch of the tool's logic is exercised against actual law:
 
 | Pairing | Actions | Tool says | Courts said |
@@ -35,6 +35,7 @@ so that every branch of the tool's logic is exercised against actual law:
 | Federal voluntary E-Verify ↔ Legal Arizona Workers Act | allowed / required | compatible, no conflict | state law upheld (*Whiting*) |
 | Federal status-check cooperation ↔ S.B. 1070 § 2(B) | allowed / required | compatible, no conflict | § 2(B) upheld on its face |
 | Federal alien registration ↔ S.B. 1070 § 3 | prohibited / prohibited | **field preemption** (Lean-verified) | § 3 preempted — *field* preemption |
+| *the same federal rule* ↔ Ala. H.B. 56 § 10 | prohibited / prohibited | **field preemption** (Lean-verified) | § 10 permanently enjoined |
 | Federal harboring safe harbor ↔ A.R.S. § 13-2929 | allowed / prohibited | **conflict** (Lean-verified) | enjoined — *conflict* preemption |
 
 Note the registration row: **both rules say `prohibited`**, so there is no
@@ -213,7 +214,11 @@ theorem preemption_us_ina_alien_registration_vs_az_sb1070_3
 ```
 
 Both rules there say `prohibited` — they agree completely — and the pair is
-still a conflict. Two things constrain it: the federal rule's own condition
+still a conflict. Alabama's § 10 goes further: it is *defined* by reference
+to violations of §§ 1304(e) and 1306(a), so it could hardly agree with
+federal law more closely, and the Eleventh Circuit held it preempted anyway
+because "even complementary state regulation is impermissible." One
+`exclusive` flag displaces parallel offences in both states at once. Two things constrain it: the federal rule's own condition
 must still hold at the witness (`omega` checks `18 ≥ 18`), and the scope
 relation must be *strict*, so a sovereign never preempts itself and no state
 preempts another. Where a pair would qualify as both a contradiction and a
@@ -240,9 +245,8 @@ It runs `lake build` once (compiles the axioms module; no network, no
 external Lean dependencies), then generates and compiles one Lean file per
 candidate.
 
-Expected output: 18 rules loaded, 7 candidates checked, 7 formally verified
-conflicts
-(six contradictions and one field preemption).
+Expected output: 19 rules loaded, 8 candidates checked, 8 formally verified
+conflicts (six contradictions and two field preemptions).
 
 Flags: `--statutes <dir>` to point at a different corpus,
 `--keep-lean-files` to leave the generated proofs in
@@ -294,7 +298,7 @@ for the axiom system itself.
 
 ## Limitations
 
-- **Small, curated corpus.** Eighteen excerpts across four jurisdictions,
+- **Small, curated corpus.** Nineteen excerpts across four jurisdictions,
   one provision per file, chosen to exercise the logic. Not a survey of
   immigration law.
 - **Constitutional rules fit the schema worst.** *Plyler*'s rule is a

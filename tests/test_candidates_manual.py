@@ -38,7 +38,7 @@ def rule(source_id, subject, activity, condition, action, scope) -> Rule:
 
 def test_corpus_loads_and_has_expected_candidates():
     statutes, rules = load_corpus(STATUTES_DIR)
-    assert len(rules) == len(statutes) == 18, f"expected 18 excerpts, got {len(statutes)}"
+    assert len(rules) == len(statutes) == 19, f"expected 19 excerpts, got {len(statutes)}"
 
     candidates = find_candidates(rules)
     pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in candidates}
@@ -49,7 +49,8 @@ def test_corpus_loads_and_has_expected_candidates():
     assert frozenset({"us-const-equal-protection-school-status-check", "al-hb56-28"}) in pairs
     assert frozenset({"us-ina-harboring-religious-exemption", "az-sb1070-13-2929"}) in pairs
     assert frozenset({"us-ina-alien-registration", "az-sb1070-3"}) in pairs
-    assert len(candidates) == 7, f"expected exactly 7 candidates in the corpus, got {len(candidates)}"
+    assert frozenset({"us-ina-alien-registration", "al-hb56-10"}) in pairs
+    assert len(candidates) == 8, f"expected exactly 8 candidates in the corpus, got {len(candidates)}"
 
 
 def test_one_federal_rule_fans_out_to_multiple_states():
@@ -128,6 +129,26 @@ def test_corpus_registration_pair_is_field_preemption_not_contradiction():
     # rule_a is always the exclusive/occupying rule for a preemption candidate.
     assert pair.rule_a.source_id == "us-ina-alien-registration" and pair.rule_a.exclusive
     assert pair.rule_b.source_id == "az-sb1070-3" and not pair.rule_b.exclusive
+
+
+def test_one_exclusive_rule_preempts_across_states():
+    """The preemption analogue of fan-out: a single `exclusive` federal rule
+    displaces parallel registration offenses in both Arizona and Alabama."""
+    _, rules = load_corpus(STATUTES_DIR)
+    displaced = {
+        c.rule_b.source_id: c.rule_b.scope
+        for c in find_candidates(rules)
+        if c.kind == PREEMPTION and c.rule_a.source_id == "us-ina-alien-registration"
+    }
+    assert displaced == {"az-sb1070-3": "Arizona State", "al-hb56-10": "Alabama State"}
+
+
+def test_parallel_state_registration_offenses_are_not_compared():
+    """Arizona's and Alabama's registration offenses agree and neither claims
+    exclusivity, so they must never be paired with each other."""
+    _, rules = load_corpus(STATUTES_DIR)
+    pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in find_candidates(rules)}
+    assert frozenset({"az-sb1070-3", "al-hb56-10"}) not in pairs
 
 
 def test_only_one_corpus_rule_is_marked_exclusive():
