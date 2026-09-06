@@ -54,12 +54,14 @@ def test_corpus_compatible_pairs_are_not_candidates():
     assert frozenset({"us-ina-state-cooperation-permitted", "az-sb1070-2b"}) not in pairs
 
 
-def test_corpus_field_preemption_pairs_are_documented_false_negatives():
-    """Both sides are `prohibited`, so this tool finds nothing -- see README limitations."""
+def test_corpus_documented_false_negatives_stay_silent():
+    """Both sides are `prohibited` in each pair, so this tool finds nothing.
+    One is field preemption (registration), one is a dropped federal exemption
+    (harboring) -- see README limitations."""
     _, rules = load_corpus(STATUTES_DIR)
     pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in find_candidates(rules)}
     assert frozenset({"us-ina-alien-registration", "az-sb1070-3"}) not in pairs
-    assert frozenset({"us-ina-harboring", "az-sb1070-5a"}) not in pairs
+    assert frozenset({"us-ina-harboring", "az-sb1070-13-2929"}) not in pairs
 
 
 def test_corpus_round_trips_conditions():

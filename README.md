@@ -22,12 +22,16 @@ tool's logic is exercised against actual law:
 | Federal officer-only warrantless arrest ↔ S.B. 1070 § 6 | prohibited / allowed | **conflict** (Lean-verified) | § 6 struck down |
 | Federal voluntary E-Verify ↔ Legal Arizona Workers Act | allowed / required | compatible, no conflict | state law upheld (*Whiting*) |
 | Federal status-check cooperation ↔ S.B. 1070 § 2(B) | allowed / required | compatible, no conflict | § 2(B) upheld on its face |
-| Federal alien registration ↔ S.B. 1070 § 3 | prohibited / prohibited | nothing (false negative) | § 3 struck down — *field* preemption |
-| Federal harboring ↔ S.B. 1070 § 5(A) | prohibited / prohibited | nothing (false negative) | § 5(A) struck down — *field* preemption |
+| Federal alien registration ↔ S.B. 1070 § 3 | prohibited / prohibited | nothing (false negative) | § 3 preempted — *field* preemption |
+| Federal harboring ↔ A.R.S. § 13-2929 | prohibited / prohibited | nothing (false negative) | enjoined — *conflict* preemption |
 
-The last two rows are the honest part: the tool's model **cannot** see
-field preemption, and the corpus keeps two real instances of that blind
-spot rather than hiding them. See Limitations.
+The last two rows are the honest part, and they fail for two *different*
+reasons. The registration pair is invisible because the tool cannot model
+**field preemption** (a duplicate state law is still void when Congress
+occupied the field). The harboring pair is invisible because the federal
+rule's religious safe harbor — the very thing the Ninth Circuit's conflict
+analysis turned on — was **dropped in formalization**. Both are kept in the
+corpus rather than hidden. See Limitations.
 
 ## Framing
 
@@ -207,13 +211,19 @@ for the axiom system itself.
   where it compresses real doctrine (e.g. `allowed` standing in for "not
   criminally prohibited", or § 2(B)'s "reasonable suspicion" and "when
   practicable" qualifiers being dropped). Read them skeptically.
-- **Field/obstacle preemption is not modeled — two documented false
-  negatives.** S.B. 1070 § 3 and § 5(A) were both struck down, and this tool
-  correctly reports nothing about them, because each merely *duplicates* the
-  federal prohibition. The defect there is that Congress occupied the field,
-  leaving no room for a parallel state law regardless of whether it agrees.
-  That needs a different rule field (e.g. `exclusive_federal_domain`) and
+- **Field preemption is not modeled.** S.B. 1070 § 3 merely *duplicates* the
+  federal registration offense, so there is no contradiction to find — yet
+  the Supreme Court held it preempted because Congress occupied the field,
+  leaving no room for a parallel state law even one that agrees. Modeling
+  this needs a different rule field (e.g. `exclusive_federal_domain`) and
   new axioms. Left unmodeled deliberately rather than modeled inaccurately.
+- **Dropped exceptions cause missed conflicts.** The federal harboring
+  statute's religious safe harbor (8 U.S.C. § 1324(a)(1)(C)) is flattened
+  away by formalizing that rule as an unconditional `prohibited`. That
+  exemption is exactly what the Ninth Circuit's conflict-preemption analysis
+  of A.R.S. § 13-2929 relied on, so the tool misses a conflict it is
+  otherwise shaped to catch. Conflicts frequently live in the exceptions,
+  and a single-predicate `condition` cannot hold them.
 - **Single-variable conditions only.** `age >= 18` works; compound
   conditions and disjunctions don't. Conditions on different variables, or
   categorical ones, are excluded from candidates rather than guessed at.
