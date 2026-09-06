@@ -22,7 +22,7 @@ third-party Python packages.**
 law — principally Arizona's S.B. 1070, partly struck down in *Arizona v.
 United States*, 567 U.S. 387 (2012), plus Texas's school-enrollment statute
 struck down in *Plyler v. Doe*, 457 U.S. 202 (1982), and Alabama's H.B. 56.
-Nineteen excerpts across four jurisdictions cover ten real pairings, chosen
+Nineteen excerpts across four jurisdictions cover eleven real pairings, chosen
 so that every branch of the tool's logic is exercised against actual law:
 
 | Pairing | Actions | Tool says | Courts said |
@@ -37,6 +37,7 @@ so that every branch of the tool's logic is exercised against actual law:
 | Federal alien registration ↔ S.B. 1070 § 3 | prohibited / prohibited | **field preemption** (Lean-verified) | § 3 preempted — *field* preemption |
 | *the same federal rule* ↔ Ala. H.B. 56 § 10 | prohibited / prohibited | **field preemption** (Lean-verified) | § 10 permanently enjoined |
 | Federal harboring safe harbor ↔ A.R.S. § 13-2929 | allowed / prohibited | **conflict** (Lean-verified) | enjoined — *conflict* preemption |
+| Federal harboring field ↔ *the same* A.R.S. § 13-2929 | prohibited / prohibited | **field preemption** (Lean-verified) | enjoined — *field* preemption |
 
 Note the registration row: **both rules say `prohibited`**, so there is no
 deontic contradiction there at all, and it is still reported. That is field
@@ -218,7 +219,15 @@ still a conflict. Alabama's § 10 goes further: it is *defined* by reference
 to violations of §§ 1304(e) and 1306(a), so it could hardly agree with
 federal law more closely, and the Eleventh Circuit held it preempted anyway
 because "even complementary state regulation is impermissible." One
-`exclusive` flag displaces parallel offences in both states at once. Two things constrain it: the federal rule's own condition
+`exclusive` flag displaces parallel offences in both states at once.
+
+Two fields are occupied in the corpus — alien registration and alien
+harboring — by different federal rules, so the mechanism is not special-cased
+to one. One provision, A.R.S. § 13-2929, is caught **twice on independent
+grounds**: displaced by the federal harboring field claim, and separately
+contradicting the religious safe harbor. That is how the Ninth Circuit
+decided it, holding the section field preempted and conflict preempted in
+consecutive sections. Two things constrain it: the federal rule's own condition
 must still hold at the witness (`omega` checks `18 ≥ 18`), and the scope
 relation must be *strict*, so a sovereign never preempts itself and no state
 preempts another. Where a pair would qualify as both a contradiction and a
@@ -245,8 +254,8 @@ It runs `lake build` once (compiles the axioms module; no network, no
 external Lean dependencies), then generates and compiles one Lean file per
 candidate.
 
-Expected output: 19 rules loaded, 8 candidates checked, 8 formally verified
-conflicts (six contradictions and two field preemptions).
+Expected output: 19 rules loaded, 9 candidates checked, 9 formally verified
+conflicts (six contradictions and three field preemptions).
 
 Flags: `--statutes <dir>` to point at a different corpus,
 `--keep-lean-files` to leave the generated proofs in
