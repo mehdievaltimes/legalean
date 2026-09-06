@@ -1,5 +1,9 @@
 # Legalean
 
+[![Lean 4](https://img.shields.io/badge/Lean-4-2E2E2E)](lean/lean-toolchain)
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](#running-it)
+[![dependencies: none](https://img.shields.io/badge/dependencies-none-4C9A2A)](requirements.txt)
+
 A small end-to-end tool that turns statutory text into structured logical
 rules and **formally verifies** contradictions between them using Lean 4 --
 not a Python heuristic, an actual machine-checked proof.
