@@ -8,11 +8,19 @@ prompt asks the model to return.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import re
+from dataclasses import dataclass
 from typing import Any, Literal, Optional
 
 Action = Literal["allowed", "prohibited", "required"]
 Operator = Literal[">=", ">", "<=", "<", "==", "!="]
+
+ACTIONS = ("allowed", "prohibited", "required")
+
+# Matches the compact condition syntax used in statute-markdown frontmatter,
+# e.g. `age >= 18` or `basis == "residence"`. Order matters: two-character
+# operators must be tried before their one-character prefixes.
+_CONDITION_RE = re.compile(r'^(\w+)\s*(>=|<=|==|!=|>|<)\s*(-?\d+|"[^"]*")$')
 
 # Documented JSON schema the extraction LLM call must satisfy (informal --
 # expressed as a plain dict since we keep dependencies minimal and avoid
@@ -101,6 +109,34 @@ class Condition:
             operator=d.get("operator"),
             value=d.get("value"),
         )
+
+    @staticmethod
+    def from_text(text: str) -> "Condition":
+        """Parse the compact form used in statute-markdown frontmatter.
+
+        `always`      -> unconditional
+        `age >= 18`   -> numeric predicate
+        `basis == "residence"` -> categorical predicate (parsed, but excluded
+                                  from Lean candidates -- see candidates.py)
+
+        The inverse of `as_text()`, so a corpus round-trips.
+        """
+        text = text.strip()
+        if text in ("always", "true", ""):
+            return Condition(variable=None, operator=None, value=None)
+
+        match = _CONDITION_RE.match(text)
+        if not match:
+            raise ValueError(
+                f"cannot parse condition {text!r}; expected 'always' or "
+                f"'<variable> <op> <number|\"string\">' with op in >=, >, <=, <, ==, !="
+            )
+        variable, operator, raw_value = match.groups()
+        if raw_value.startswith('"'):
+            value: Any = raw_value[1:-1]
+        else:
+            value = int(raw_value)
+        return Condition(variable=variable, operator=operator, value=value)
 
     def to_dict(self) -> dict[str, Any]:
         return {"variable": self.variable, "operator": self.operator, "value": self.value}

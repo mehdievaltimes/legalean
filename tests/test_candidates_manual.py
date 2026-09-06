@@ -17,10 +17,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from legalean.candidates import find_candidates  # noqa: E402
+from legalean.corpus import load_corpus  # noqa: E402
 from legalean.models import Condition, Rule  # noqa: E402
-from legalean.storage import load_rules, load_statutes  # noqa: E402
 
-DATA_DIR = Path(__file__).parent.parent / "data"
+STATUTES_DIR = Path(__file__).parent.parent / "statutes"
 
 
 def rule(source_id, subject, activity, condition, action, scope) -> Rule:
@@ -35,16 +35,39 @@ def rule(source_id, subject, activity, condition, action, scope) -> Rule:
     )
 
 
-def test_sample_data_has_expected_candidates():
-    statutes = load_statutes(DATA_DIR / "statutes.json")
-    rules = load_rules(DATA_DIR / "rules.json")
-    assert {r.source_id for r in rules} == {s.id for s in statutes}, "rules.json must match statutes.json ids"
+def test_corpus_loads_and_has_expected_candidates():
+    statutes, rules = load_corpus(STATUTES_DIR)
+    assert len(rules) == len(statutes) == 12, f"expected 12 excerpts, got {len(statutes)}"
 
     candidates = find_candidates(rules)
     pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in candidates}
     assert frozenset({"us-ina-employment-noncriminalization", "az-sb1070-5c"}) in pairs
     assert frozenset({"us-ina-warrantless-arrest-federal-only", "az-sb1070-6"}) in pairs
-    assert len(candidates) == 2, f"expected exactly 2 candidates in the sample data, got {len(candidates)}"
+    assert len(candidates) == 2, f"expected exactly 2 candidates in the corpus, got {len(candidates)}"
+
+
+def test_corpus_compatible_pairs_are_not_candidates():
+    """The two real allowed/required pairs (upheld state laws) must stay silent."""
+    _, rules = load_corpus(STATUTES_DIR)
+    pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in find_candidates(rules)}
+    assert frozenset({"us-irca-everify-voluntary", "az-legal-workers-act-everify"}) not in pairs
+    assert frozenset({"us-ina-state-cooperation-permitted", "az-sb1070-2b"}) not in pairs
+
+
+def test_corpus_field_preemption_pairs_are_documented_false_negatives():
+    """Both sides are `prohibited`, so this tool finds nothing -- see README limitations."""
+    _, rules = load_corpus(STATUTES_DIR)
+    pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in find_candidates(rules)}
+    assert frozenset({"us-ina-alien-registration", "az-sb1070-3"}) not in pairs
+    assert frozenset({"us-ina-harboring", "az-sb1070-5a"}) not in pairs
+
+
+def test_corpus_round_trips_conditions():
+    """Compact frontmatter condition syntax survives parse -> render."""
+    _, rules = load_corpus(STATUTES_DIR)
+    by_id = {r.source_id: r for r in rules}
+    assert by_id["us-ina-alien-registration"].condition.as_text() == "age >= 18"
+    assert by_id["az-sb1070-3"].condition.as_text() == "always"
 
 
 def test_classic_overlapping_age_gate_is_a_candidate_with_a_witness():

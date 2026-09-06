@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""CLI: extract structured rules from statute excerpts, then FORMALLY VERIFY
-conflicts between them by generating Lean 4 theorems and compiling them.
+"""CLI: read the markdown statute corpus and FORMALLY VERIFY conflicts
+between the rules it declares, by generating Lean 4 theorems and compiling
+them.
 
-    python check_conflicts.py                  # use cached rules if present
-    python check_conflicts.py --refresh         # re-run LLM extraction
-    python check_conflicts.py --statutes path/to/statutes.json
+    python3 check_conflicts.py
+    python3 check_conflicts.py --statutes path/to/statutes/
+    python3 check_conflicts.py --keep-lean-files    # inspect generated proofs
 
 Pipeline:
-  1. Load rules (cached, or extracted via one Anthropic API call per excerpt
-     -- see src/legalean/extract.py).
-  2. Pure-Python candidate filtering (src/legalean/candidates.py, no LLM,
-     no Lean): which pairs are structurally plausible conflicts?
+  1. Load hand-formalized rules from statutes/*.md (src/legalean/corpus.py).
+  2. Pure-Python candidate filtering (src/legalean/candidates.py): which
+     pairs are structurally plausible conflicts?
   3. Generate a Lean 4 theorem per candidate (src/legalean/leangen.py).
   4. Compile each with `lake env lean` (src/legalean/leanverify.py). Only
      pairs Lean's kernel actually accepts a proof for are reported.
 
-Requires the Lean toolchain (elan + lake) on PATH -- see README. Step 4
-never calls the Anthropic API; only a missing rules cache (or --refresh)
-triggers step 1's API call.
+No network access and no API key are required anywhere in this pipeline --
+only the Lean toolchain (elan + lake). See src/legalean/extract.py for the
+optional LLM-assisted drafting helper, which is not part of this path.
 """
 
 from __future__ import annotations
@@ -31,51 +31,26 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from legalean.candidates import find_candidates  # noqa: E402
+from legalean.corpus import load_corpus  # noqa: E402
 from legalean.leangen import generate_conflict_files  # noqa: E402
 from legalean.leanverify import verify_all  # noqa: E402
-from legalean.models import Rule, Statute  # noqa: E402
-from legalean.storage import load_rules, load_statutes, save_rules  # noqa: E402
+from legalean.models import Statute  # noqa: E402
 
-DATA_DIR = Path(__file__).parent / "data"
-LEAN_DIR = Path(__file__).parent / "lean"
+ROOT = Path(__file__).parent
+STATUTES_DIR = ROOT / "statutes"
+LEAN_DIR = ROOT / "lean"
 LEAN_CONFLICTS_DIR = LEAN_DIR / "Legalean" / "Conflicts"
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--statutes", default=str(DATA_DIR / "statutes.json"), help="path to statutes JSON")
-    parser.add_argument("--rules-cache", default=str(DATA_DIR / "rules.json"), help="path to cached extracted rules")
-    parser.add_argument(
-        "--refresh",
-        action="store_true",
-        help="re-run LLM extraction instead of using the rules cache (calls the Anthropic API)",
-    )
+    parser.add_argument("--statutes", default=str(STATUTES_DIR), help="directory of statute markdown files")
     parser.add_argument(
         "--keep-lean-files",
         action="store_true",
         help="don't delete generated lean/Legalean/Conflicts/*.lean after the run (for inspection)",
     )
     return parser.parse_args()
-
-
-def get_rules(args: argparse.Namespace, statutes: list[Statute]) -> list[Rule]:
-    cache_path = Path(args.rules_cache)
-    if not args.refresh and cache_path.exists():
-        print(f"Loaded cached extracted rules from {cache_path} (use --refresh to re-run extraction).\n")
-        return load_rules(cache_path)
-
-    print(f"Calling the Anthropic API to extract rules from {len(statutes)} excerpt(s)...")
-    from legalean.extract import DEFAULT_MODEL, extract_all  # imported lazily: no API key needed unless we get here
-
-    print(f"Model: {DEFAULT_MODEL} (override with the LEGALEAN_MODEL env var)\n")
-    try:
-        rules = extract_all(statutes)
-    except RuntimeError as e:
-        print(f"Extraction failed: {e}", file=sys.stderr)
-        sys.exit(1)
-    save_rules(rules, cache_path)
-    print(f"Cached extracted rules to {cache_path}\n")
-    return rules
 
 
 def check_lean_toolchain() -> None:
@@ -99,9 +74,12 @@ def build_lean_library() -> None:
         sys.exit(1)
 
 
-def print_report(results, statutes_by_id: dict[str, Statute], n_candidates: int) -> None:
+def print_report(results, statutes_by_id: dict[str, Statute], n_rules: int, n_candidates: int) -> None:
     verified = [r for r in results if r.verified]
-    print(f"Checked {n_candidates} structural candidate(s); Lean formally verified {len(verified)} conflict(s):\n")
+    print(
+        f"Loaded {n_rules} formalized rule(s); {n_candidates} structural candidate(s); "
+        f"Lean formally verified {len(verified)} conflict(s).\n"
+    )
 
     if not verified:
         print("No conflicts survived formal verification.")
@@ -132,18 +110,18 @@ def main() -> None:
     check_lean_toolchain()
     build_lean_library()
 
-    statutes = load_statutes(args.statutes)
+    statutes, rules = load_corpus(args.statutes)
     statutes_by_id = {s.id: s for s in statutes}
 
-    rules = get_rules(args, statutes)
     candidates = find_candidates(rules)
-
     generated = generate_conflict_files(candidates, statutes_by_id, LEAN_CONFLICTS_DIR)
     results = verify_all(generated, LEAN_DIR)
 
-    print_report(results, statutes_by_id, len(candidates))
+    print_report(results, statutes_by_id, len(rules), len(candidates))
 
-    if not args.keep_lean_files:
+    if args.keep_lean_files:
+        print(f"\nGenerated Lean proofs kept in {LEAN_CONFLICTS_DIR}")
+    else:
         for f in LEAN_CONFLICTS_DIR.glob("*.lean"):
             f.unlink()
 

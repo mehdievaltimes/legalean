@@ -1,119 +1,103 @@
 # Legalean
 
-A small end-to-end tool that extracts structured logical rules from real
-statutory text and **formally verifies** logical contradictions between them
-using Lean 4 -- not a Python heuristic, an actual machine-checked proof.
+A small end-to-end tool that turns statutory text into structured logical
+rules and **formally verifies** contradictions between them using Lean 4 --
+not a Python heuristic, an actual machine-checked proof.
 
-**Domain covered:** federal immigration law vs. Arizona's SB 1070, the
-2010 state immigration-enforcement law partially struck down by the Supreme
-Court in *Arizona v. United States*, 567 U.S. 387 (2012), for conflicting
-with (being preempted by) federal law. This domain was picked because it has
-two real, well-documented, citable contradictions of exactly the shape this
-tool can formalize:
+The corpus lives in [`statutes/`](statutes/) as human-readable markdown: one
+file per excerpt, with the formalization in its frontmatter and the
+reasoning behind it written out underneath. The verification pipeline is
+stdlib-only Python plus Lean — **no API key, no network access, no
+third-party Python packages.**
 
-- federal law deliberately imposes no criminal penalty on an unauthorized
-  alien for seeking or engaging in unauthorized employment, while SB 1070
-  § 5(C) made that same conduct a state crime -- the Court held § 5(C)
-  preempted for exactly this reason (567 U.S. at 403-407);
-- federal law confers warrantless-arrest authority for suspected civil
-  removability on federal immigration officers only, while SB 1070 § 6
-  authorized state and local peace officers to make the same kind of arrest
-  -- the Court held § 6 preempted too (567 U.S. at 408-410).
+**Domain covered:** federal immigration law vs. Arizona's S.B. 1070, the
+2010 state immigration-enforcement law partly struck down by the Supreme
+Court in *Arizona v. United States*, 567 U.S. 387 (2012). Twelve excerpts
+cover four real federal/state pairings, chosen so that every branch of the
+tool's logic is exercised against actual law:
 
-Two more excerpts (upheld E-Verify requirements, and an alien-registration
-provision on both sides) are included as documented non-conflicts -- see
-Limitations for why the tool correctly stays silent on them, including one
-real case its model can't capture.
+| Pairing | Actions | Tool says | Courts said |
+|---|---|---|---|
+| Federal non-criminalization of unauthorized work ↔ S.B. 1070 § 5(C) | allowed / prohibited | **conflict** (Lean-verified) | § 5(C) struck down |
+| Federal officer-only warrantless arrest ↔ S.B. 1070 § 6 | prohibited / allowed | **conflict** (Lean-verified) | § 6 struck down |
+| Federal voluntary E-Verify ↔ Legal Arizona Workers Act | allowed / required | compatible, no conflict | state law upheld (*Whiting*) |
+| Federal status-check cooperation ↔ S.B. 1070 § 2(B) | allowed / required | compatible, no conflict | § 2(B) upheld on its face |
+| Federal alien registration ↔ S.B. 1070 § 3 | prohibited / prohibited | nothing (false negative) | § 3 struck down — *field* preemption |
+| Federal harboring ↔ S.B. 1070 § 5(A) | prohibited / prohibited | nothing (false negative) | § 5(A) struck down — *field* preemption |
+
+The last two rows are the honest part: the tool's model **cannot** see
+field preemption, and the corpus keeps two real instances of that blind
+spot rather than hiding them. See Limitations.
 
 ## Framing
 
 This is a **text-formalization + formal-logical-conflict-detection** tool.
-It does not, and is not meant to, decide which law is "correct" or offer
-legal advice -- it surfaces rule pairs that are *provably* inconsistent once
-formalized, and leaves interpretation to the reader. A "conflict" reported
-by this tool comes with a Lean proof term the kernel has type-checked, not
-just a Python assertion.
+It does not decide which law is "correct," which one prevails, or offer
+legal advice — it surfaces rule pairs that are *provably* inconsistent once
+formalized, and leaves interpretation to the reader. A conflict it reports
+comes with a Lean proof term the kernel has type-checked, not just a Python
+assertion. (Conflicting pairs are displayed with the enclosing jurisdiction
+first purely for readability; that is not a statement about precedence.)
 
 ## Pipeline
 
 ```
-data/statutes.json --[LLM extraction]--> data/rules.json --[pure Python
-pre-filter]--> candidates --[Lean codegen]--> lean/Legalean/Conflicts/*.lean
---[lake env lean, i.e. the Lean *compiler*]--> confirmed conflicts
+statutes/*.md --[markdown parse]--> rules --[pure-Python pre-filter]-->
+candidates --[Lean codegen]--> lean/Legalean/Conflicts/*.lean
+--[lake env lean, i.e. the Lean compiler]--> confirmed conflicts
 ```
 
-1. **Ingestion** -- [`data/statutes.json`](data/statutes.json): each excerpt
-   as `{id, jurisdiction, citation, raw_text}`.
+1. **Corpus** ([`statutes/`](statutes/), loaded by
+   [`corpus.py`](src/legalean/corpus.py)) — each excerpt is a markdown file
+   whose frontmatter carries the formalization and whose `## Excerpt`
+   section carries the statutory text. Everything else in the file is
+   commentary for human readers. Frontmatter is parsed with a small
+   hand-rolled reader (not PyYAML) to keep the pipeline dependency-free:
 
-2. **Extraction** ([`src/legalean/extract.py`](src/legalean/extract.py)) --
-   one Anthropic API call per excerpt (via the `anthropic` Python SDK,
-   `client.messages.create` with `output_config.format` set to a JSON
-   schema, which constrains the model to return only valid JSON matching
-   that schema). Each excerpt becomes one rule object:
-
-   ```jsonc
-   {
-     "subject": "unauthorized alien",
-     "activity": "seeking or engaging in unauthorized employment", // normalized
-                                                                    // topic, so rules about the
-                                                                    // same real-world act can be
-                                                                    // matched across sources
-     "condition": {"variable": null, "operator": null, "value": null}, // unconditional here;
-                                                                        // {"variable": "age", "operator": ">=", "value": 21}
-                                                                        // for a numeric gate
-     "action": "allowed",                    // "allowed" | "prohibited" | "required"
-     "scope": "US Federal"
-   }
+   ```markdown
+   ---
+   id: az-sb1070-5c
+   jurisdiction: Arizona State
+   citation: Ariz. Rev. Stat. § 13-2928(C) (S.B. 1070 § 5(C))
+   subject: unauthorized alien
+   activity: seeking or engaging in unauthorized employment
+   condition: always          # or a predicate, e.g. `age >= 18`
+   action: prohibited         # allowed | prohibited | required
+   scope: Arizona State
+   ---
    ```
 
-   The full schema is documented as a plain dict, `RULE_JSON_SCHEMA`, in
-   [`src/legalean/models.py`](src/legalean/models.py). `activity` was added
-   beyond the task spec's `{subject, condition, action, scope}` because the
-   sample set mixes statutes about different acts (employment vs. carrying
-   a registration document) -- without it, "same subject" string matching
-   would either miss real conflicts or flag unrelated ones.
+   `activity` is the join key: two rules are only compared if they describe
+   the same real-world act. `condition` uses a compact syntax that
+   round-trips through `Condition.from_text` / `as_text`.
 
-3. **Candidate pre-filtering** ([`src/legalean/candidates.py`](src/legalean/candidates.py))
-   -- plain Python, **no LLM call, no Lean**. This does NOT decide whether
-   two rules conflict -- it decides which pairs are even worth asking Lean
-   about, by checking that ALL of:
-   - `scope`s overlap (a tiny hardcoded lookup in
-     [`scopes.py`](src/legalean/scopes.py) treats "US Federal" and "Arizona
-     State" as overlapping, per the Supremacy Clause -- U.S. Const. art. VI,
-     cl. 2 -- which is why a federal/state immigration conflict is even
-     possible),
-   - `activity` strings describe the same real-world act (normalized token
-     overlap -- see `_same_activity`),
-   - `action`s are logically contradictory (`allowed` vs. `prohibited`, or
-     `prohibited` vs. `required` -- not `allowed` vs. `required`),
-   - a concrete integer **witness** can be constructed that satisfies both
-     rules' conditions (trivial when both are unconditional; interval
-     arithmetic when both are numeric on the same variable). Conditions on
-     different variables, or non-numeric conditions, are excluded here --
-     see Limitations.
+2. **Candidate pre-filtering** ([`candidates.py`](src/legalean/candidates.py))
+   — plain Python, no Lean. This does **not** decide whether two rules
+   conflict; it decides which pairs are worth asking Lean about, requiring
+   all of: overlapping `scope`s (per [`scopes.py`](src/legalean/scopes.py),
+   where "US Federal" reaches into "Arizona State" — the Supremacy Clause
+   premise, U.S. Const. art. VI, cl. 2); same `activity`; contradictory
+   `action`s; and a constructible integer **witness** satisfying both
+   conditions.
 
-4. **Lean codegen** ([`src/legalean/leangen.py`](src/legalean/leangen.py))
-   -- renders one self-contained Lean 4 file per candidate under
-   `lean/Legalean/Conflicts/`, stating both rules as hypotheses over a
-   shared opaque `Activity : Int → Prop` and claiming their combination
-   is inconsistent (`False`), using the witness from step 3.
+3. **Lean codegen** ([`leangen.py`](src/legalean/leangen.py)) — one
+   self-contained Lean file per candidate, stating both rules as hypotheses
+   over a shared opaque `Activity : Int → Prop` and claiming `False`.
 
-5. **Formal verification** ([`src/legalean/leanverify.py`](src/legalean/leanverify.py))
-   -- runs `lake env lean` on each generated file. A pair is only reported
-   as a **confirmed conflict** if Lean's kernel accepts the proof (exit 0).
-   If the witness doesn't actually satisfy both conditions, or the action
-   pair isn't really exclusive, Lean rejects the file and the pair is
-   silently dropped -- this is the actual formal-verification guarantee,
-   not a Python promise about it.
+4. **Formal verification** ([`leanverify.py`](src/legalean/leanverify.py))
+   — runs `lake env lean` per file. A pair is reported **only** if Lean's
+   kernel accepts the proof. If the witness doesn't really satisfy both
+   conditions, Lean rejects the file and the pair is dropped. That is the
+   actual guarantee, rather than a Python promise about one.
 
-6. **Output** ([`check_conflicts.py`](check_conflicts.py)) -- a CLI that
-   prints each Lean-confirmed conflict: both citations, both extracted
-   rules, and a one-line plain-English description. No verdict on which
-   rule is right.
+5. **Output** ([`check_conflicts.py`](check_conflicts.py)) — prints each
+   Lean-confirmed conflict with both citations, both rules, and a one-line
+   description.
 
-### The Lean side: `lean/Legalean/Deontic.lean`
+### The Lean side
 
-A tiny axiom set, not a big proof library:
+[`lean/Legalean/Deontic.lean`](lean/Legalean/Deontic.lean) is a tiny axiom
+set, not a big proof library:
 
 ```lean
 axiom Allowed : Prop → Prop
@@ -124,13 +108,12 @@ axiom allowed_prohibited_excl (p : Prop) : Allowed p → Prohibited p → False
 axiom prohibited_required_excl (p : Prop) : Prohibited p → Required p → False
 ```
 
-`Allowed`/`Prohibited`/`Required` are opaque; the only facts Lean knows about
-them are the two exclusion axioms above (allowed/required is deliberately
-*not* axiomatized as exclusive -- a mandatory act is trivially a permitted
-one). A generated conflict file states each rule as `∀ x : Int, cond x →
-Action (Activity x)`, instantiates both at the shared witness, and closes
-with the matching exclusion axiom -- e.g. the real generated file for the
-sample data's one conflict:
+The modalities are opaque; the only facts Lean knows are those two
+exclusions. `allowed`/`required` is deliberately **not** exclusive — a
+mandatory act is trivially a permitted one — and the corpus contains two
+real pairs (E-Verify, § 2(B)) that depend on exactly that choice. A
+generated proof instantiates both rules at the shared witness and closes
+with the matching axiom:
 
 ```lean
 theorem conflict_us_ina_employment_noncriminalization_vs_az_sb1070_5c
@@ -140,139 +123,127 @@ theorem conflict_us_ina_employment_noncriminalization_vs_az_sb1070_5c
   allowed_prohibited_excl (Activity 0) (ruleA 0 trivial) (ruleB 0 trivial)
 ```
 
-Numeric conditions (e.g. `age >= 21`) use Lean's built-in `omega` decision
-procedure for linear integer arithmetic instead of `trivial` -- no mathlib
-dependency, just core Lean 4.
+Numeric conditions (e.g. `age >= 18`) discharge with core Lean's `omega`
+decision procedure instead of `trivial` — no mathlib, just Lean 4 core.
 
 ## Running it
 
-Requires Python 3.10+ and the Lean 4 toolchain (`elan`, which provides
+Requires Python 3.10+ and the Lean 4 toolchain (`elan`, providing
 `lean`/`lake`). If you don't have it:
 
 ```bash
 curl --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh | sh
 ```
 
-Open a new shell afterward so `lake`/`lean` are on `PATH`, then:
+Open a new shell so `lake` is on `PATH`, then:
 
 ```bash
-pip install -r requirements.txt
 python3 check_conflicts.py
 ```
 
-The repo ships with `data/rules.json` already populated (as if extraction
-had already been run) and `lean/` as a working Lake project, so **the above
-works immediately with no Anthropic API key** -- only Lean needs to be
-installed. `check_conflicts.py` runs `lake build` once (compiles the tiny
-axioms module; no network access, no external Lean dependencies), then
-generates and compiles one Lean file per structural candidate.
+That's the whole setup — no `pip install` needed for the verification path.
+It runs `lake build` once (compiles the axioms module; no network, no
+external Lean dependencies), then generates and compiles one Lean file per
+candidate.
 
-Expected output: 2 candidates checked, 2 formally verified conflicts --
-the federal-employment-noncriminalization rule vs. SB 1070 § 5(C), and the
-federal-officers-only warrantless-arrest rule vs. SB 1070 § 6. The E-Verify
-rule and the (both-"prohibited") registration-document rules correctly
-produce no candidates at all.
+Expected output: 12 rules loaded, 2 candidates checked, 2 formally verified
+conflicts.
 
-To re-run extraction from the raw text (e.g. after editing
-`data/statutes.json`):
+Flags: `--statutes <dir>` to point at a different corpus,
+`--keep-lean-files` to leave the generated proofs in
+`lean/Legalean/Conflicts/` for inspection instead of cleaning them up.
 
-```bash
-cp .env.example .env   # fill in ANTHROPIC_API_KEY
-python3 check_conflicts.py --refresh
-```
+### Adding a statute
 
-**Does my Claude.ai subscription cover this?** No -- a Claude Pro/Max chat
-subscription and Anthropic API access are billed separately. `--refresh`
-needs an API key from [console.anthropic.com](https://console.anthropic.com/settings/keys),
-paid pay-as-you-go. Extracting 5 short excerpts costs a small fraction of a
-cent regardless of which model you point it at. The default model is
-`claude-opus-5`; set `LEGALEAN_MODEL=claude-sonnet-5` (or `claude-haiku-4-5`)
-in your environment if you'd rather trade extraction quality for lower cost.
+Write a new `statutes/<id>.md` by hand (copy an existing one — the
+frontmatter fields are the whole contract, and `id` must match the
+filename). Re-run `check_conflicts.py`; nothing else needs regenerating.
 
-Other flags: `--statutes <path>` / `--rules-cache <path>` to point at
-different files, `--keep-lean-files` to leave the generated
-`lean/Legalean/Conflicts/*.lean` on disk for inspection instead of deleting
-them after the run.
-
-## Verifying the core logic without the API
+Optionally, [`src/legalean/extract.py`](src/legalean/extract.py) will draft
+the frontmatter for you with an LLM. It is **not** part of the verification
+pipeline and nothing imports it:
 
 ```bash
-python3 tests/test_candidates_manual.py    # pure Python, no API, no Lean/subprocess calls
-python3 tests/test_lean_verification.py    # no API; shells out to `lake`/`lean` only
+pip install anthropic          # the only third-party dependency, optional
+export ANTHROPIC_API_KEY=...   # from console.anthropic.com
+python3 -m legalean.extract excerpt.txt "US Federal" "8 U.S.C. § 1324a"
 ```
 
-Plain-assert scripts (not pytest -- kept minimal per project scope), no
-network access needed beyond the one-time Lean toolchain install. The first
-checks `candidates.py`'s structural pre-filter against the shipped sample
-data plus hand-built edge cases (the classic "allowed if age>=18 /
-prohibited if age<21" overlap, a non-overlapping age partition, same-action
-non-candidates, unrelated activities, non-overlapping jurisdictions,
-mismatched condition variables). The second actually invokes the Lean
-compiler: it confirms the sample data's one real conflict compiles (Lean
-accepts the proof), and, separately, that a deliberately-constructed
-non-overlapping witness is *rejected* by Lean -- i.e. Lean itself refuses a
-false conflict claim, not just the Python heuristic.
+It prints proposed frontmatter to review and edit. Note a Claude.ai Pro/Max
+chat subscription does **not** grant API access — that's billed separately,
+pay-as-you-go. The committed corpus was formalized by hand, so this was
+never run against it.
+
+## Verifying the logic
+
+```bash
+python3 tests/test_candidates_manual.py    # pure Python: corpus parsing + pre-filter
+python3 tests/test_lean_verification.py    # invokes the Lean compiler
+```
+
+Plain-assert scripts (not pytest — kept minimal per project scope), no
+network access, no API calls. The first checks the corpus parses, that the
+two conflicts are found, that the two compatible pairs and two
+field-preemption pairs are correctly *not* flagged, and covers edge cases
+(overlapping age gates, non-overlapping partitions, same-action pairs,
+unrelated activities, disjoint jurisdictions, mismatched condition
+variables). The second compiles generated proofs and asserts three things:
+the corpus's real conflicts are accepted by Lean; a deliberately
+non-overlapping witness is **rejected** by Lean (so the guarantee is real,
+not decorative); and each generated file's header pairs every citation with
+its own rule.
+
+`lake build` in `lean/` also compiles
+[`Legalean/Smoke.lean`](lean/Legalean/Smoke.lean), standing regression tests
+for the axiom system itself.
 
 ## Limitations
 
-- **Tiny, cherry-picked sample.** Seven excerpts, two conflicts. This is a
-  proof of concept for the pipeline shape, not a survey of immigration law.
-- **LLM extraction noise.** The model may phrase `subject`/`activity`
-  inconsistently across excerpts or misread a condition. `_same_activity`'s
-  token-overlap heuristic is a stopgap for matching topics across sources,
-  not real NLP. Every extracted rule should be spot-checked against its
-  citation before being trusted -- Lean verifies that the *formalized*
-  rules are inconsistent, not that the formalization is faithful to the
-  statute.
-- **Field/obstacle preemption is NOT modeled -- a known false negative in
-  the sample data.** `az-sb1070-3` (failing to carry an alien registration
-  document) and `us-ina-alien-registration` (the federal registration/carry
-  requirement) are both formalized as `prohibited`, so this tool's
-  allowed-vs-prohibited model correctly finds no *direct* contradiction
-  between them. But SB 1070 § 3 was *also* struck down in *Arizona v.
-  United States* -- not because it contradicted federal law's substance,
-  but because Congress's registration scheme was held to *occupy the
-  field*, leaving no room for any state law on the same subject regardless
-  of whether it agrees. That's a different, more common kind of immigration
-  preemption than the deontic contradiction this tool checks for, and it
-  would need a different rule field (e.g. an `exclusive_federal_domain`
-  flag on the activity) and different Lean axioms to formalize. Left out of
-  this MVP's scope deliberately rather than modeled inaccurately.
-- **Single-variable numeric conditions only.** `age >= 21` works; compound
-  conditions (`age >= 21 AND income < X`) or disjunctions aren't modeled,
-  and conditions on different variables are excluded from candidates rather
-  than guessed at (see `candidates.py`).
-- **Scope overlap is a hardcoded lookup**, not real preemption/jurisdiction
-  law -- it only knows the two jurisdictions in the sample data.
-- **Not legal advice.** Formal verification here means "these two
-  *formalized* rules are logically inconsistent," which is a narrower claim
-  than "these two statutes conflict as a matter of law." It doesn't know
-  about severability, amendments, repeals, standing, or how courts have
-  actually resolved unrelated aspects of the underlying dispute. Do not use
-  its output to make a legal decision.
+- **Small, curated corpus.** Twelve excerpts, one statute per file, chosen
+  to exercise the logic. Not a survey of immigration law.
+- **Formalization is the weak link, and it's manual.** Lean verifies that
+  the *formalized* rules are inconsistent — never that the formalization is
+  faithful to the statute. Each file's "Formalization notes" section records
+  where it compresses real doctrine (e.g. `allowed` standing in for "not
+  criminally prohibited", or § 2(B)'s "reasonable suspicion" and "when
+  practicable" qualifiers being dropped). Read them skeptically.
+- **Field/obstacle preemption is not modeled — two documented false
+  negatives.** S.B. 1070 § 3 and § 5(A) were both struck down, and this tool
+  correctly reports nothing about them, because each merely *duplicates* the
+  federal prohibition. The defect there is that Congress occupied the field,
+  leaving no room for a parallel state law regardless of whether it agrees.
+  That needs a different rule field (e.g. `exclusive_federal_domain`) and
+  new axioms. Left unmodeled deliberately rather than modeled inaccurately.
+- **Single-variable conditions only.** `age >= 18` works; compound
+  conditions and disjunctions don't. Conditions on different variables, or
+  categorical ones, are excluded from candidates rather than guessed at.
+- **Scope overlap is a hardcoded lookup**, not real jurisdiction law — it
+  knows only the jurisdictions in the corpus.
+- **Not legal advice.** "Formally verified" means these two *formalized*
+  rules are logically inconsistent, which is a much narrower claim than
+  "these two statutes conflict as a matter of law." The tool knows nothing
+  of severability, amendment, repeal, standing, or remedy.
 
 ## Repo layout
 
 ```
-check_conflicts.py         # CLI entry point
+check_conflicts.py           # CLI entry point
+statutes/*.md                # the corpus: source of truth, one excerpt per file
 src/legalean/
-  models.py                 # Statute/Rule/Condition dataclasses + RULE_JSON_SCHEMA
-  extract.py                 # the only module that calls the Anthropic API
-  candidates.py               # pure-Python structural pre-filter (not the final verdict)
-  leangen.py                   # renders Lean 4 theorem files from candidates
-  leanverify.py                 # compiles them with `lake env lean`; the actual verdict
-  scopes.py                       # jurisdiction overlap lookup
-  storage.py                       # JSON load/save helpers
-data/
-  statutes.json              # input excerpts
-  rules.json                  # cached extracted rules (checked in, so the CLI runs with no API key)
-lean/                       # Lake project
-  lean-toolchain              # pins the Lean 4 toolchain version (via elan)
-  lakefile.toml                # Lake package config
-  Legalean/Deontic.lean          # the deontic-logic axioms (Allowed/Prohibited/Required + exclusions)
-  Legalean/Smoke.lean             # standing regression tests for the axiom system, built by `lake build`
-  Legalean/Conflicts/               # generated per-run by check_conflicts.py (gitignored)
+  models.py                  # Statute/Rule/Condition + condition text parsing
+  corpus.py                  # markdown + frontmatter loader (stdlib only)
+  candidates.py              # pure-Python structural pre-filter (not the verdict)
+  leangen.py                 # renders Lean 4 theorems from candidates
+  leanverify.py              # compiles them with `lake env lean`; the verdict
+  scopes.py                  # jurisdiction overlap + display ordering
+  extract.py                 # OPTIONAL LLM drafting helper; nothing imports it
+lean/                        # Lake project
+  lean-toolchain             # pins the Lean 4 toolchain (via elan)
+  lakefile.toml
+  Legalean/Deontic.lean      # the deontic axioms
+  Legalean/Smoke.lean        # regression tests for the axiom system
+  Legalean/Conflicts/        # generated per run (gitignored)
 tests/
-  test_candidates_manual.py  # dependency-free assert script, no API/Lean calls
-  test_lean_verification.py   # assert script that shells out to `lake`/`lean`, no API calls
+  test_candidates_manual.py  # stdlib only, no Lean, no API
+  test_lean_verification.py  # shells out to `lake`/`lean`, no API
 ```

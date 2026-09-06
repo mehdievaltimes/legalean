@@ -19,13 +19,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from legalean.candidates import Candidate, find_candidates  # noqa: E402
+from legalean.corpus import load_corpus  # noqa: E402
 from legalean.leangen import generate_conflict_files  # noqa: E402
 from legalean.leanverify import verify_all  # noqa: E402
 from legalean.models import Condition, Rule, Statute  # noqa: E402
-from legalean.storage import load_rules, load_statutes  # noqa: E402
 
 ROOT = Path(__file__).parent.parent
-DATA_DIR = ROOT / "data"
+STATUTES_DIR = ROOT / "statutes"
 LEAN_DIR = ROOT / "lean"
 SCRATCH_DIR = LEAN_DIR / "Legalean" / "ConflictsTestScratch"
 
@@ -52,10 +52,9 @@ def require_lean() -> None:
         sys.exit(1)
 
 
-def test_sample_data_conflicts_are_formally_verified():
-    statutes = load_statutes(DATA_DIR / "statutes.json")
+def test_corpus_conflicts_are_formally_verified():
+    statutes, rules = load_corpus(STATUTES_DIR)
     statutes_by_id = {s.id: s for s in statutes}
-    rules = load_rules(DATA_DIR / "rules.json")
     candidates = find_candidates(rules)
     assert len(candidates) == 2
 
@@ -64,6 +63,34 @@ def test_sample_data_conflicts_are_formally_verified():
     assert len(results) == 2
     for result in results:
         assert result.verified, f"Lean rejected a conflict expected to be provable: {result.stderr}"
+
+
+def test_generated_header_pairs_each_citation_with_its_own_rule():
+    """Regression: the exclusion axiom fixes hypothesis order, which need not match
+    candidate order -- the header must not pair ruleA's citation with ruleB's rule."""
+    statutes, rules = load_corpus(STATUTES_DIR)
+    statutes_by_id = {s.id: s for s in statutes}
+    candidates = find_candidates(rules)
+    generated = generate_conflict_files(candidates, statutes_by_id, SCRATCH_DIR)
+
+    assert generated, "expected at least one generated file to check"
+    for gf in generated:
+        lines = gf.path.read_text(encoding="utf-8").splitlines()
+        for rule in (gf.candidate.rule_a, gf.candidate.rule_b):
+            citation = statutes_by_id[rule.source_id].citation
+            # The line describing this rule must be the one directly after its own
+            # citation -- regardless of which binder (ruleA/ruleB) it became.
+            citation_idx = next(
+                (i for i, ln in enumerate(lines) if citation in ln and ln.startswith(("ruleA:", "ruleB:"))),
+                None,
+            )
+            assert citation_idx is not None, f"{gf.path.name}: citation for {rule.source_id} not in header"
+            description = lines[citation_idx + 1]
+            expected = f"({rule.scope}) {rule.subject}: {rule.action} to {rule.activity}"
+            assert expected in description, (
+                f"{gf.path.name}: citation for {rule.source_id} is followed by {description!r}, "
+                f"expected {expected!r}"
+            )
 
 
 def test_genuinely_non_overlapping_candidate_is_rejected_by_lean():

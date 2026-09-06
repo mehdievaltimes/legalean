@@ -22,3 +22,17 @@ def scopes_overlap(scope_a: str, scope_b: str) -> bool:
     if scope_a == scope_b:
         return True
     return frozenset({scope_a, scope_b}) in _OVERLAPPING_SCOPES
+
+
+# Scopes that geographically enclose others, broadest first. Used ONLY to
+# order a conflicting pair for display and for stable theorem naming -- it is
+# not a statement about which rule prevails. This tool reports structural
+# contradictions and takes no position on precedence or preemption.
+_ENCLOSING_ORDER = ("US Federal",)
+
+
+def enclosing_first(scope_a: str, scope_b: str) -> bool:
+    """True if scope_a should be presented before scope_b."""
+    rank_a = _ENCLOSING_ORDER.index(scope_a) if scope_a in _ENCLOSING_ORDER else len(_ENCLOSING_ORDER)
+    rank_b = _ENCLOSING_ORDER.index(scope_b) if scope_b in _ENCLOSING_ORDER else len(_ENCLOSING_ORDER)
+    return rank_a <= rank_b

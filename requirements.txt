@@ -1,1 +1,8 @@
+# The verification pipeline (check_conflicts.py + tests) has ZERO third-party
+# Python dependencies -- it is stdlib-only, and needs the Lean 4 toolchain
+# (elan/lake) rather than a pip package. See README for the elan install.
+#
+# The single optional dependency below is only for src/legalean/extract.py,
+# the LLM-assisted drafting helper used when adding a new statute excerpt.
+# Nothing in the verification path imports it.
 anthropic>=1.4.0

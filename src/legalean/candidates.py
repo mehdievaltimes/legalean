@@ -34,7 +34,7 @@ from itertools import combinations
 from typing import Optional
 
 from .models import Condition, Rule
-from .scopes import scopes_overlap
+from .scopes import enclosing_first, scopes_overlap
 
 _STOPWORDS = {"of", "the", "a", "an", "in", "to", "by", "for", "and", "or"}
 
@@ -181,5 +181,10 @@ def find_candidates(rules: list[Rule]) -> list[Candidate]:
         witness = _find_witness(rule_a.condition, rule_b.condition)
         if witness is None:
             continue  # no constructible overlap witness (see _find_witness docstring for why)
-        candidates.append(Candidate(rule_a=rule_a, rule_b=rule_b, witness=witness))
+        # Present the enclosing jurisdiction first -- readability only, not a
+        # statement about which rule prevails (see scopes.enclosing_first).
+        first, second = (
+            (rule_a, rule_b) if enclosing_first(rule_a.scope, rule_b.scope) else (rule_b, rule_a)
+        )
+        candidates.append(Candidate(rule_a=first, rule_b=second, witness=witness))
     return candidates
