@@ -18,16 +18,18 @@ reasoning behind it written out underneath. The verification pipeline is
 stdlib-only Python plus Lean — **no API key, no network access, no
 third-party Python packages.**
 
-**Domain covered:** federal immigration law vs. Arizona's S.B. 1070, the
-2010 state immigration-enforcement law partly struck down by the Supreme
-Court in *Arizona v. United States*, 567 U.S. 387 (2012). Twelve excerpts
-cover four real federal/state pairings, chosen so that every branch of the
-tool's logic is exercised against actual law:
+**Domain covered:** federal immigration law and the Constitution vs. state
+law — principally Arizona's S.B. 1070, partly struck down in *Arizona v.
+United States*, 567 U.S. 387 (2012), plus Texas's school-enrollment statute
+struck down in *Plyler v. Doe*, 457 U.S. 202 (1982). Fourteen excerpts
+across three jurisdictions cover seven real pairings, chosen so that every
+branch of the tool's logic is exercised against actual law:
 
 | Pairing | Actions | Tool says | Courts said |
 |---|---|---|---|
 | Federal non-criminalization of unauthorized work ↔ S.B. 1070 § 5(C) | allowed / prohibited | **conflict** (Lean-verified) | § 5(C) struck down |
 | Federal officer-only warrantless arrest ↔ S.B. 1070 § 6 | prohibited / allowed | **conflict** (Lean-verified) | § 6 struck down |
+| 14th Am. equal protection (*Plyler*) ↔ Tex. Educ. Code § 21.031 | prohibited / allowed | **conflict** (Lean-verified) | § 21.031 unconstitutional |
 | Federal voluntary E-Verify ↔ Legal Arizona Workers Act | allowed / required | compatible, no conflict | state law upheld (*Whiting*) |
 | Federal status-check cooperation ↔ S.B. 1070 § 2(B) | allowed / required | compatible, no conflict | § 2(B) upheld on its face |
 | Federal alien registration ↔ S.B. 1070 § 3 | prohibited / prohibited | nothing (false negative) | § 3 preempted — *field* preemption |
@@ -135,8 +137,21 @@ theorem conflict_us_ina_employment_noncriminalization_vs_az_sb1070_5c
   allowed_prohibited_excl (Activity 0) (ruleA 0 trivial) (ruleB 0 trivial)
 ```
 
-Numeric conditions (e.g. `age >= 18`) discharge with core Lean's `omega`
-decision procedure instead of `trivial` — no mathlib, just Lean 4 core.
+Numeric conditions discharge with core Lean's `omega` decision procedure
+instead of `trivial` — no mathlib, just Lean 4 core. The *Plyler* pair
+exercises this on real law, because Tex. Educ. Code § 21.031 carried its own
+school-age floor:
+
+```lean
+theorem conflict_us_const_equal_protection_education_vs_tx_educ_code_21_031
+    (ruleA : (∀ x : Int, x > 5 → Allowed (Activity x)))
+    (ruleB : (∀ x : Int, True → Prohibited (Activity x))) :
+    False :=
+  allowed_prohibited_excl (Activity 6) (ruleA 6 (by omega)) (ruleB 6 trivial)
+```
+
+`6` is the witness `candidates.py` computes for `age > 5`; Lean re-checks
+that it really satisfies the premise rather than taking Python's word.
 
 ## Running it
 
@@ -158,7 +173,7 @@ It runs `lake build` once (compiles the axioms module; no network, no
 external Lean dependencies), then generates and compiles one Lean file per
 candidate.
 
-Expected output: 12 rules loaded, 2 candidates checked, 2 formally verified
+Expected output: 14 rules loaded, 3 candidates checked, 3 formally verified
 conflicts.
 
 Flags: `--statutes <dir>` to point at a different corpus,
@@ -211,8 +226,15 @@ for the axiom system itself.
 
 ## Limitations
 
-- **Small, curated corpus.** Twelve excerpts, one statute per file, chosen
-  to exercise the logic. Not a survey of immigration law.
+- **Small, curated corpus.** Fourteen excerpts across three jurisdictions,
+  one provision per file, chosen to exercise the logic. Not a survey of
+  immigration law.
+- **Constitutional rules fit the schema worst.** *Plyler*'s rule is a
+  standard applied to a state's justification ("unless it furthers some
+  substantial state interest"), not a flat ban. Encoding it as an
+  unconditional `prohibited` drops that escape hatch and makes the rule look
+  more absolute than it is — a simplification running opposite to the
+  harboring one below, which makes a rule look narrower than it is.
 - **Formalization is the weak link, and it's manual.** Lean verifies that
   the *formalized* rules are inconsistent — never that the formalization is
   faithful to the statute. Each file's "Formalization notes" section records

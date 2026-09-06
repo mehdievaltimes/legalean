@@ -15,6 +15,7 @@ from __future__ import annotations
 # sample data grows.
 _OVERLAPPING_SCOPES = {
     frozenset({"US Federal", "Arizona State"}),
+    frozenset({"US Federal", "Texas State"}),
 }
 
 

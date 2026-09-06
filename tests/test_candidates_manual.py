@@ -37,13 +37,32 @@ def rule(source_id, subject, activity, condition, action, scope) -> Rule:
 
 def test_corpus_loads_and_has_expected_candidates():
     statutes, rules = load_corpus(STATUTES_DIR)
-    assert len(rules) == len(statutes) == 12, f"expected 12 excerpts, got {len(statutes)}"
+    assert len(rules) == len(statutes) == 14, f"expected 14 excerpts, got {len(statutes)}"
 
     candidates = find_candidates(rules)
     pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in candidates}
     assert frozenset({"us-ina-employment-noncriminalization", "az-sb1070-5c"}) in pairs
     assert frozenset({"us-ina-warrantless-arrest-federal-only", "az-sb1070-6"}) in pairs
-    assert len(candidates) == 2, f"expected exactly 2 candidates in the corpus, got {len(candidates)}"
+    assert frozenset({"us-const-equal-protection-education", "tx-educ-code-21-031"}) in pairs
+    assert len(candidates) == 3, f"expected exactly 3 candidates in the corpus, got {len(candidates)}"
+
+
+def test_corpus_numeric_condition_pair_gets_a_witness():
+    """The Plyler pair is the only real conflict with a numeric condition
+    (Tex. Educ. Code § 21.031's `age > 5`), so its proof needs an omega witness."""
+    _, rules = load_corpus(STATUTES_DIR)
+    plyler = next(
+        c
+        for c in find_candidates(rules)
+        if {c.rule_a.source_id, c.rule_b.source_id}
+        == {"us-const-equal-protection-education", "tx-educ-code-21-031"}
+    )
+    assert plyler.witness == 6, f"expected witness 6 for `age > 5`, got {plyler.witness}"
+
+
+def test_corpus_spans_three_jurisdictions():
+    _, rules = load_corpus(STATUTES_DIR)
+    assert {r.scope for r in rules} == {"US Federal", "Arizona State", "Texas State"}
 
 
 def test_corpus_compatible_pairs_are_not_candidates():

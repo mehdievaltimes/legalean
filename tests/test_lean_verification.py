@@ -56,13 +56,32 @@ def test_corpus_conflicts_are_formally_verified():
     statutes, rules = load_corpus(STATUTES_DIR)
     statutes_by_id = {s.id: s for s in statutes}
     candidates = find_candidates(rules)
-    assert len(candidates) == 2
+    assert len(candidates) == 3
 
     generated = generate_conflict_files(candidates, statutes_by_id, SCRATCH_DIR)
     results = verify_all(generated, LEAN_DIR)
-    assert len(results) == 2
+    assert len(results) == 3
     for result in results:
         assert result.verified, f"Lean rejected a conflict expected to be provable: {result.stderr}"
+
+
+def test_numeric_condition_proof_uses_omega():
+    """The Plyler/Texas pair carries `age > 5`, so its generated proof must
+    discharge that premise with omega (not trivial) and still compile."""
+    statutes, rules = load_corpus(STATUTES_DIR)
+    statutes_by_id = {s.id: s for s in statutes}
+    plyler = [
+        c
+        for c in find_candidates(rules)
+        if {c.rule_a.source_id, c.rule_b.source_id}
+        == {"us-const-equal-protection-education", "tx-educ-code-21-031"}
+    ]
+    assert len(plyler) == 1
+    generated = generate_conflict_files(plyler, statutes_by_id, SCRATCH_DIR)
+    source = generated[0].path.read_text(encoding="utf-8")
+    assert "x > 5" in source, "expected the numeric condition in the generated hypothesis"
+    assert "by omega" in source, "expected omega to discharge the numeric premise"
+    assert verify_all(generated, LEAN_DIR)[0].verified
 
 
 def test_generated_header_pairs_each_citation_with_its_own_rule():
