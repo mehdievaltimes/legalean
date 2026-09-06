@@ -56,13 +56,32 @@ def test_corpus_conflicts_are_formally_verified():
     statutes, rules = load_corpus(STATUTES_DIR)
     statutes_by_id = {s.id: s for s in statutes}
     candidates = find_candidates(rules)
-    assert len(candidates) == 3
+    assert len(candidates) == 4
 
     generated = generate_conflict_files(candidates, statutes_by_id, SCRATCH_DIR)
     results = verify_all(generated, LEAN_DIR)
-    assert len(results) == 3
+    assert len(results) == 4
     for result in results:
         assert result.verified, f"Lean rejected a conflict expected to be provable: {result.stderr}"
+
+
+def test_prohibited_required_proof_uses_the_second_axiom():
+    """The Alabama school-status pair is prohibited/required, so its proof must
+    close with prohibited_required_excl -- the axiom no other real pair reaches."""
+    statutes, rules = load_corpus(STATUTES_DIR)
+    statutes_by_id = {s.id: s for s in statutes}
+    alabama = [
+        c
+        for c in find_candidates(rules)
+        if {c.rule_a.source_id, c.rule_b.source_id}
+        == {"us-const-equal-protection-school-status-check", "al-hb56-28"}
+    ]
+    assert len(alabama) == 1
+    generated = generate_conflict_files(alabama, statutes_by_id, SCRATCH_DIR)
+    source = generated[0].path.read_text(encoding="utf-8")
+    assert "prohibited_required_excl" in source
+    assert "allowed_prohibited_excl" not in source
+    assert verify_all(generated, LEAN_DIR)[0].verified
 
 
 def test_numeric_condition_proof_uses_omega():

@@ -16,6 +16,7 @@ from __future__ import annotations
 _OVERLAPPING_SCOPES = {
     frozenset({"US Federal", "Arizona State"}),
     frozenset({"US Federal", "Texas State"}),
+    frozenset({"US Federal", "Alabama State"}),
 }
 
 

@@ -37,14 +37,24 @@ def rule(source_id, subject, activity, condition, action, scope) -> Rule:
 
 def test_corpus_loads_and_has_expected_candidates():
     statutes, rules = load_corpus(STATUTES_DIR)
-    assert len(rules) == len(statutes) == 14, f"expected 14 excerpts, got {len(statutes)}"
+    assert len(rules) == len(statutes) == 16, f"expected 16 excerpts, got {len(statutes)}"
 
     candidates = find_candidates(rules)
     pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in candidates}
     assert frozenset({"us-ina-employment-noncriminalization", "az-sb1070-5c"}) in pairs
     assert frozenset({"us-ina-warrantless-arrest-federal-only", "az-sb1070-6"}) in pairs
     assert frozenset({"us-const-equal-protection-education", "tx-educ-code-21-031"}) in pairs
-    assert len(candidates) == 3, f"expected exactly 3 candidates in the corpus, got {len(candidates)}"
+    assert frozenset({"us-const-equal-protection-school-status-check", "al-hb56-28"}) in pairs
+    assert len(candidates) == 4, f"expected exactly 4 candidates in the corpus, got {len(candidates)}"
+
+
+def test_corpus_covers_both_exclusion_axioms():
+    """Three conflicts are allowed/prohibited; the Alabama pair is the only
+    prohibited/required one, so it is what exercises prohibited_required_excl."""
+    _, rules = load_corpus(STATUTES_DIR)
+    action_pairs = [frozenset({c.rule_a.action, c.rule_b.action}) for c in find_candidates(rules)]
+    assert frozenset({"allowed", "prohibited"}) in action_pairs
+    assert frozenset({"prohibited", "required"}) in action_pairs
 
 
 def test_corpus_numeric_condition_pair_gets_a_witness():
@@ -60,9 +70,14 @@ def test_corpus_numeric_condition_pair_gets_a_witness():
     assert plyler.witness == 6, f"expected witness 6 for `age > 5`, got {plyler.witness}"
 
 
-def test_corpus_spans_three_jurisdictions():
+def test_corpus_spans_four_jurisdictions():
     _, rules = load_corpus(STATUTES_DIR)
-    assert {r.scope for r in rules} == {"US Federal", "Arizona State", "Texas State"}
+    assert {r.scope for r in rules} == {
+        "US Federal",
+        "Arizona State",
+        "Texas State",
+        "Alabama State",
+    }
 
 
 def test_corpus_compatible_pairs_are_not_candidates():

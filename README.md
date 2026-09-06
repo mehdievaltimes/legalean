@@ -21,15 +21,16 @@ third-party Python packages.**
 **Domain covered:** federal immigration law and the Constitution vs. state
 law — principally Arizona's S.B. 1070, partly struck down in *Arizona v.
 United States*, 567 U.S. 387 (2012), plus Texas's school-enrollment statute
-struck down in *Plyler v. Doe*, 457 U.S. 202 (1982). Fourteen excerpts
-across three jurisdictions cover seven real pairings, chosen so that every
-branch of the tool's logic is exercised against actual law:
+struck down in *Plyler v. Doe*, 457 U.S. 202 (1982), and Alabama's H.B. 56.
+Sixteen excerpts across four jurisdictions cover eight real pairings, chosen
+so that every branch of the tool's logic is exercised against actual law:
 
 | Pairing | Actions | Tool says | Courts said |
 |---|---|---|---|
 | Federal non-criminalization of unauthorized work ↔ S.B. 1070 § 5(C) | allowed / prohibited | **conflict** (Lean-verified) | § 5(C) struck down |
 | Federal officer-only warrantless arrest ↔ S.B. 1070 § 6 | prohibited / allowed | **conflict** (Lean-verified) | § 6 struck down |
 | 14th Am. equal protection (*Plyler*) ↔ Tex. Educ. Code § 21.031 | prohibited / allowed | **conflict** (Lean-verified) | § 21.031 unconstitutional |
+| 14th Am. equal protection (*HICA*) ↔ Ala. H.B. 56 § 28 | prohibited / **required** | **conflict** (Lean-verified) | § 28 permanently enjoined |
 | Federal voluntary E-Verify ↔ Legal Arizona Workers Act | allowed / required | compatible, no conflict | state law upheld (*Whiting*) |
 | Federal status-check cooperation ↔ S.B. 1070 § 2(B) | allowed / required | compatible, no conflict | § 2(B) upheld on its face |
 | Federal alien registration ↔ S.B. 1070 § 3 | prohibited / prohibited | nothing (false negative) | § 3 preempted — *field* preemption |
@@ -123,10 +124,15 @@ axiom prohibited_required_excl (p : Prop) : Prohibited p → Required p → Fals
 ```
 
 The modalities are opaque; the only facts Lean knows are those two
-exclusions. `allowed`/`required` is deliberately **not** exclusive — a
-mandatory act is trivially a permitted one — and the corpus contains two
-real pairs (E-Verify, § 2(B)) that depend on exactly that choice. A
-generated proof instantiates both rules at the shared witness and closes
+exclusions. Both are load-bearing on real law: three conflicts close with
+`allowed_prohibited_excl`, and the Alabama school-status pair closes with
+`prohibited_required_excl`. Meanwhile `allowed`/`required` is deliberately
+**not** exclusive — a mandatory act is trivially a permitted one — which is
+why the E-Verify and § 2(B) pairs are correctly silent. Put together, the
+corpus says a state may require what federal law merely permits, but not
+what it forbids.
+
+A generated proof instantiates both rules at the shared witness and closes
 with the matching axiom:
 
 ```lean
@@ -173,7 +179,7 @@ It runs `lake build` once (compiles the axioms module; no network, no
 external Lean dependencies), then generates and compiles one Lean file per
 candidate.
 
-Expected output: 14 rules loaded, 3 candidates checked, 3 formally verified
+Expected output: 16 rules loaded, 4 candidates checked, 4 formally verified
 conflicts.
 
 Flags: `--statutes <dir>` to point at a different corpus,
@@ -226,7 +232,7 @@ for the axiom system itself.
 
 ## Limitations
 
-- **Small, curated corpus.** Fourteen excerpts across three jurisdictions,
+- **Small, curated corpus.** Sixteen excerpts across four jurisdictions,
   one provision per file, chosen to exercise the logic. Not a survey of
   immigration law.
 - **Constitutional rules fit the schema worst.** *Plyler*'s rule is a
