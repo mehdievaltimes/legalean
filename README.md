@@ -22,12 +22,13 @@ third-party Python packages.**
 law — principally Arizona's S.B. 1070, partly struck down in *Arizona v.
 United States*, 567 U.S. 387 (2012), plus Texas's school-enrollment statute
 struck down in *Plyler v. Doe*, 457 U.S. 202 (1982), and Alabama's H.B. 56.
-Sixteen excerpts across four jurisdictions cover eight real pairings, chosen
+Seventeen excerpts across four jurisdictions cover nine real pairings, chosen
 so that every branch of the tool's logic is exercised against actual law:
 
 | Pairing | Actions | Tool says | Courts said |
 |---|---|---|---|
 | Federal non-criminalization of unauthorized work ↔ S.B. 1070 § 5(C) | allowed / prohibited | **conflict** (Lean-verified) | § 5(C) struck down |
+| *the same federal rule* ↔ Ala. H.B. 56 § 11(a) | allowed / prohibited | **conflict** (Lean-verified) | § 11(a) permanently enjoined |
 | Federal officer-only warrantless arrest ↔ S.B. 1070 § 6 | prohibited / allowed | **conflict** (Lean-verified) | § 6 struck down |
 | 14th Am. equal protection (*Plyler*) ↔ Tex. Educ. Code § 21.031 | prohibited / allowed | **conflict** (Lean-verified) | § 21.031 unconstitutional |
 | 14th Am. equal protection (*HICA*) ↔ Ala. H.B. 56 § 28 | prohibited / **required** | **conflict** (Lean-verified) | § 28 permanently enjoined |
@@ -124,7 +125,7 @@ axiom prohibited_required_excl (p : Prop) : Prohibited p → Required p → Fals
 ```
 
 The modalities are opaque; the only facts Lean knows are those two
-exclusions. Both are load-bearing on real law: three conflicts close with
+exclusions. Both are load-bearing on real law: four conflicts close with
 `allowed_prohibited_excl`, and the Alabama school-status pair closes with
 `prohibited_required_excl`. Meanwhile `allowed`/`required` is deliberately
 **not** exclusive — a mandatory act is trivially a permitted one — which is
@@ -179,7 +180,7 @@ It runs `lake build` once (compiles the axioms module; no network, no
 external Lean dependencies), then generates and compiles one Lean file per
 candidate.
 
-Expected output: 16 rules loaded, 4 candidates checked, 4 formally verified
+Expected output: 17 rules loaded, 5 candidates checked, 5 formally verified
 conflicts.
 
 Flags: `--statutes <dir>` to point at a different corpus,
@@ -232,7 +233,7 @@ for the axiom system itself.
 
 ## Limitations
 
-- **Small, curated corpus.** Sixteen excerpts across four jurisdictions,
+- **Small, curated corpus.** Seventeen excerpts across four jurisdictions,
   one provision per file, chosen to exercise the logic. Not a survey of
   immigration law.
 - **Constitutional rules fit the schema worst.** *Plyler*'s rule is a

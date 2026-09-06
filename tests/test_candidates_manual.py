@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from legalean.candidates import find_candidates  # noqa: E402
 from legalean.corpus import load_corpus  # noqa: E402
 from legalean.models import Condition, Rule  # noqa: E402
+from legalean.scopes import scopes_overlap  # noqa: E402
 
 STATUTES_DIR = Path(__file__).parent.parent / "statutes"
 
@@ -37,15 +38,37 @@ def rule(source_id, subject, activity, condition, action, scope) -> Rule:
 
 def test_corpus_loads_and_has_expected_candidates():
     statutes, rules = load_corpus(STATUTES_DIR)
-    assert len(rules) == len(statutes) == 16, f"expected 16 excerpts, got {len(statutes)}"
+    assert len(rules) == len(statutes) == 17, f"expected 17 excerpts, got {len(statutes)}"
 
     candidates = find_candidates(rules)
     pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in candidates}
     assert frozenset({"us-ina-employment-noncriminalization", "az-sb1070-5c"}) in pairs
+    assert frozenset({"us-ina-employment-noncriminalization", "al-hb56-11a"}) in pairs
     assert frozenset({"us-ina-warrantless-arrest-federal-only", "az-sb1070-6"}) in pairs
     assert frozenset({"us-const-equal-protection-education", "tx-educ-code-21-031"}) in pairs
     assert frozenset({"us-const-equal-protection-school-status-check", "al-hb56-28"}) in pairs
-    assert len(candidates) == 4, f"expected exactly 4 candidates in the corpus, got {len(candidates)}"
+    assert len(candidates) == 5, f"expected exactly 5 candidates in the corpus, got {len(candidates)}"
+
+
+def test_one_federal_rule_fans_out_to_multiple_states():
+    """The federal employment rule conflicts with both Arizona's and Alabama's
+    parallel offenses -- one formalized rule checked against every state."""
+    _, rules = load_corpus(STATUTES_DIR)
+    states = {
+        (c.rule_a if c.rule_b.source_id == "us-ina-employment-noncriminalization" else c.rule_b).scope
+        for c in find_candidates(rules)
+        if "us-ina-employment-noncriminalization" in {c.rule_a.source_id, c.rule_b.source_id}
+    }
+    assert states == {"Arizona State", "Alabama State"}
+
+
+def test_two_states_are_never_compared_to_each_other():
+    """Arizona and Alabama both prohibit unauthorized work, but one state's law
+    has no force in another, so scopes must not overlap."""
+    _, rules = load_corpus(STATUTES_DIR)
+    pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in find_candidates(rules)}
+    assert frozenset({"az-sb1070-5c", "al-hb56-11a"}) not in pairs
+    assert not scopes_overlap("Arizona State", "Alabama State")
 
 
 def test_corpus_covers_both_exclusion_axioms():

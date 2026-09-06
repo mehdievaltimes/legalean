@@ -38,4 +38,10 @@ and declined to do so.
 
 ## Conflicts with
 
+This one federal rule conflicts with **two** state provisions in the corpus,
+which is the point of including both — a single formalized federal rule is
+checked against every state at once:
+
 - [`az-sb1070-5c`](az-sb1070-5c.md) — Arizona criminalized exactly this conduct.
+- [`al-hb56-11a`](al-hb56-11a.md) — Alabama enacted substantively the same
+  offense; the Eleventh Circuit found it indistinguishable from Arizona's.
