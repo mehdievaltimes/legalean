@@ -1,7 +1,7 @@
 ---
 id: us-ina-warrantless-arrest-federal-only
 jurisdiction: US Federal
-citation: 8 U.S.C. § 1357(a)(2); discussed in Arizona v. United States, 567 U.S. 387, 408-410 (2012)
+citation: 8 U.S.C. § 1357(a)(2); discussed in Arizona v. United States, 567 U.S. 387, 407-410 (2012)
 subject: state or local peace officer
 activity: making a warrantless arrest based on suspected civil removability
 condition: always
