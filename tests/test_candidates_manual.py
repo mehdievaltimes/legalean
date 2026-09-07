@@ -21,6 +21,7 @@ from legalean.candidates import (  # noqa: E402
     PREEMPTION,
     _find_witness,
     _same_activity,
+    _within_field,
     find_candidates,
     find_near_miss_activities,
 )
@@ -45,7 +46,7 @@ def rule(source_id, subject, activity, condition, action, scope) -> Rule:
 
 def test_corpus_loads_and_has_expected_candidates():
     statutes, rules = load_corpus(STATUTES_DIR)
-    assert len(rules) == len(statutes) == 19, f"expected 19 excerpts, got {len(statutes)}"
+    assert len(rules) == len(statutes) == 20, f"expected 20 excerpts, got {len(statutes)}"
 
     candidates = find_candidates(rules)
     pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in candidates}
@@ -58,7 +59,8 @@ def test_corpus_loads_and_has_expected_candidates():
     assert frozenset({"us-ina-alien-registration", "az-sb1070-3"}) in pairs
     assert frozenset({"us-ina-alien-registration", "al-hb56-10"}) in pairs
     assert frozenset({"us-ina-harboring", "az-sb1070-13-2929"}) in pairs
-    assert len(candidates) == 9, f"expected exactly 9 candidates in the corpus, got {len(candidates)}"
+    assert frozenset({"us-ina-harboring", "sc-act69-4bd"}) in pairs
+    assert len(candidates) == 10, f"expected exactly 10 candidates in the corpus, got {len(candidates)}"
 
 
 def test_one_federal_rule_fans_out_to_multiple_states():
@@ -105,14 +107,53 @@ def test_corpus_numeric_condition_pair_gets_a_witness():
     assert plyler.witness.lean_type == "Int"
 
 
-def test_corpus_spans_four_jurisdictions():
+def test_corpus_spans_five_jurisdictions():
     _, rules = load_corpus(STATUTES_DIR)
     assert {r.scope for r in rules} == {
         "US Federal",
         "Arizona State",
         "Texas State",
         "Alabama State",
+        "South Carolina State",
     }
+
+
+def test_narrower_offense_is_preempted_but_does_not_contradict():
+    """South Carolina's harboring felony carries an extra specific-intent
+    element, so it is inside the occupied field (preempted) but cannot be
+    shown to contradict the religious safe harbor (unverifiable, so silent)."""
+    _, rules = load_corpus(STATUTES_DIR)
+    against_sc = {
+        (c.kind, c.rule_a.source_id)
+        for c in find_candidates(rules)
+        if "sc-act69-4bd" in {c.rule_a.source_id, c.rule_b.source_id}
+    }
+    assert against_sc == {(PREEMPTION, "us-ina-harboring")}
+
+
+def test_field_membership_is_directional():
+    """A narrower act is inside a broader field; the reverse is not true."""
+    field = "harboring or transporting an unlawfully present alien"
+    narrower = field + " with intent to further unlawful entry"
+    assert _within_field(field, narrower)
+    assert not _within_field(narrower, field)
+    assert _within_field(field, field), "a field contains itself"
+    # ...and the contradiction path still refuses the same pair.
+    assert not _same_activity(field, narrower)
+
+
+def test_intended_specialization_is_not_reported_as_a_near_miss():
+    """A narrower activity inside a declared field is by design, not a typo."""
+    federal = rule("f", "x", "harboring an alien", (None, None, None), "prohibited", "US Federal")
+    federal.exclusive = True
+    state = rule(
+        "s", "x", "harboring an alien with intent to avoid detection",
+        (None, None, None), "prohibited", "Arizona State",
+    )
+    assert find_near_miss_activities([federal, state]) == []
+    # Without the field declaration it *is* a near miss worth flagging.
+    federal.exclusive = False
+    assert len(find_near_miss_activities([federal, state])) == 1
 
 
 def test_corpus_compatible_pairs_are_not_candidates():
