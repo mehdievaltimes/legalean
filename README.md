@@ -85,16 +85,18 @@ candidates --[Lean codegen]--> lean/Legalean/Conflicts/*.lean
    ---
    ```
 
-   `activity` is the join key: two rules are only compared if they describe
-   the same real-world act. `condition` uses a compact syntax that
-   round-trips through `Condition.from_text` / `as_text`.
+   `activity` is the join key, matched **exactly** on its normalized token
+   set (lowercased, punctuation and stopwords dropped) — it is a key, not a
+   similarity score. Keys that look alike but differ are reported as
+   near misses rather than joined; see below. `condition` uses a compact
+   syntax that round-trips through `Condition.from_text` / `as_text`.
 
 2. **Candidate pre-filtering** ([`candidates.py`](src/legalean/candidates.py))
    — plain Python, no Lean. This does **not** decide whether two rules
    conflict; it decides which pairs are worth asking Lean about. Every
-   candidate needs the same `activity` and a constructible **witness** (a
-   concrete case both conditions cover). Beyond that there are two shapes:
-   a **contradiction** needs overlapping `scope`s (per
+   candidate needs an identical `activity` key and a constructible
+   **witness** (a concrete case both conditions cover). Beyond that there
+   are two shapes: a **contradiction** needs overlapping `scope`s (per
    [`scopes.py`](src/legalean/scopes.py), where "US Federal" reaches into
    "Arizona State" — the Supremacy Clause premise, U.S. Const. art. VI,
    cl. 2) plus contradictory `action`s; a **field preemption** needs one
@@ -185,6 +187,24 @@ theorem conflict_us_ina_harboring_religious_exemption_vs_az_sb1070_13_2929
 The carrier type is fixed by the witness, so both rules in a pair must be
 formalized at the same type; a variable given a number on one side and a
 string on the other yields no candidate rather than a bogus one.
+
+### Activity keys and near misses
+
+Because `activity` is matched exactly, `check_conflicts.py` lints the corpus
+for keys that are *similar but unequal* — the pairs the old fuzzy matcher
+would have joined — and warns on stderr:
+
+```
+warning: 1 pair(s) of activity keys look alike but are not equal, so the rules
+carrying them will NOT be compared:
+  - 'failing to carry alien registration document'
+    'failing to carry alien registration documents'
+  Unify them if they name the same act, or reword them if they don't.
+```
+
+Either they name one act and should be unified so the conflict is found, or
+they name two and should be reworded so nobody unifies them. A similarity
+threshold cannot tell those apart; a human can.
 
 ### Field preemption — the other kind of conflict
 
@@ -347,6 +367,17 @@ for the axiom system itself.
   categorical ones, are excluded from candidates rather than guessed at.
 - **Scope overlap is a hardcoded lookup**, not real jurisdiction law — it
   knows only the jurisdictions in the corpus.
+- **`activity` is an exact key, so the corpus must be internally
+  consistent.** Two rules about the same act that spell it differently will
+  not be compared. That is deliberate — the previous fuzzy matcher accepted
+  a subset relation, which meant a *narrower* state offense (harboring "with
+  intent to further unlawful entry") matched a broader federal one, and the
+  tool then reasoned as though the state rule reached every case the federal
+  rule did. The extra element lives in the activity phrase, which the
+  `condition` field never captures, so the pairing could manufacture a
+  conflict. Exact matching trades that for a different risk — a typo
+  silently hiding a real conflict — which is why near misses are reported
+  loudly on stderr instead of being resolved by a threshold.
 - **Not legal advice.** "Formally verified" means these two *formalized*
   rules are logically inconsistent, which is a much narrower claim than
   "these two statutes conflict as a matter of law." The tool knows nothing

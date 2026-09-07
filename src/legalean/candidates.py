@@ -8,12 +8,15 @@ even worth generating a Lean theorem for, plus (when possible) a concrete
 witness for Lean to check with `omega` (numeric) or `decide` (categorical).
 
 Design notes / simplifications (documented, not hidden):
-  * Two rules are only compared if their `activity` strings are judged
-    "the same real-world act" (see _same_activity) and their `scope`s
-    overlap (see scopes.scopes_overlap). We deliberately do NOT require the
-    prose `subject` field to match textually -- who a rule applies to is
-    already captured structurally in its `condition`, and LLM phrasing of
-    `subject` varies too much to string-match reliably.
+  * Two rules are only compared if they declare the *same* `activity` key
+    (see _same_activity -- exact match on the normalized token set, not a
+    similarity score) and their `scope`s overlap (see
+    scopes.scopes_overlap). Near-but-unequal keys are reported by
+    find_near_miss_activities rather than silently joined or silently
+    ignored. We deliberately do NOT require the prose `subject` field to
+    match textually -- who a rule applies to is already captured
+    structurally in its `condition`, and phrasing of `subject` varies too
+    much to string-match reliably.
   * A candidate is only emitted when we can construct a concrete witness --
     i.e. when we can hand Lean something it can actually check. Conditions
     may be numeric (Int, compared as intervals), boolean, or string; the
@@ -51,18 +54,55 @@ def _normalize_tokens(text: str) -> set[str]:
     return {tok for tok in cleaned.split() if tok not in _STOPWORDS}
 
 
-def _same_activity(activity_a: str, activity_b: str, threshold: float = 0.5) -> bool:
-    """Heuristic match: normalized token Jaccard similarity above threshold,
-    or one phrase contains the other. Good enough for a small sample set;
-    would need real NLP (embeddings, canonical activity taxonomy) at scale.
+def _same_activity(activity_a: str, activity_b: str) -> bool:
+    """Exact match on the normalized token set -- `activity` is a join KEY,
+    not a similarity score.
+
+    This used to accept a subset relation or a Jaccard score above 0.5, and
+    that was unsound in a specific, dangerous way. A state offense carrying
+    an extra element -- say "harboring ... **with intent to further unlawful
+    entry**" -- is a strict *superset* of the federal phrase's tokens, so the
+    subset branch matched them. The tool then reasoned as though the state
+    rule reached every case the federal rule did, when in fact it reaches a
+    narrower set gated by an element the `condition` field never captured.
+    The result was a confidently reported conflict that might not exist.
+
+    Refusing to guess is the safe direction, but exact matching has its own
+    failure mode: a typo or a rephrasing silently *drops* a real pair, and a
+    silent false negative is worse than a noisy one. So the old fuzzy
+    predicate lives on in `_looks_related`, which powers the near-miss lint
+    below -- what used to join rules silently now asks a human out loud.
     """
+    a, b = _normalize_tokens(activity_a), _normalize_tokens(activity_b)
+    return bool(a) and a == b
+
+
+def _looks_related(activity_a: str, activity_b: str, threshold: float = 0.5) -> bool:
+    """The old heuristic, kept only to flag activity keys a human should look at."""
     a, b = _normalize_tokens(activity_a), _normalize_tokens(activity_b)
     if not a or not b:
         return False
-    if a <= b or b <= a:  # one is a subset of the other's tokens
+    if a <= b or b <= a:
         return True
-    jaccard = len(a & b) / len(a | b)
-    return jaccard >= threshold
+    return len(a & b) / len(a | b) >= threshold
+
+
+def find_near_miss_activities(rules: list[Rule]) -> list[tuple[str, str]]:
+    """Activity keys that are similar but not equal, sorted for stable output.
+
+    These are exactly the pairs the old fuzzy matcher would have joined and
+    the current one will not. Each is either (a) two spellings of one
+    activity, which should be unified so the conflict is found, or (b) two
+    genuinely different activities that merely read alike, which should be
+    reworded so nobody is tempted to unify them. Both need a human; neither
+    should be settled by a similarity threshold.
+    """
+    activities = sorted({rule.activity for rule in rules})
+    return [
+        (a, b)
+        for a, b in combinations(activities, 2)
+        if not _same_activity(a, b) and _looks_related(a, b)
+    ]
 
 
 def _contradictory_actions(action_a: str, action_b: str) -> bool:

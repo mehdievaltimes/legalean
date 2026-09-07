@@ -30,7 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from legalean.candidates import PREEMPTION, find_candidates  # noqa: E402
+from legalean.candidates import PREEMPTION, find_candidates, find_near_miss_activities  # noqa: E402
 from legalean.corpus import load_corpus  # noqa: E402
 from legalean.leangen import generate_conflict_files  # noqa: E402
 from legalean.leanverify import verify_all  # noqa: E402
@@ -82,6 +82,26 @@ def build_lean_library() -> None:
         sys.exit(1)
 
 
+def warn_on_near_miss_activities(rules) -> None:
+    """`activity` is an exact join key, so a near-but-unequal pair of keys is
+    almost certainly a typo silently hiding a real conflict. Say so loudly
+    rather than letting a similarity threshold guess."""
+    near_misses = find_near_miss_activities(rules)
+    if not near_misses:
+        return
+    print(
+        f"warning: {len(near_misses)} pair(s) of activity keys look alike but are not equal, "
+        f"so the rules carrying them will NOT be compared:",
+        file=sys.stderr,
+    )
+    for activity_a, activity_b in near_misses:
+        print(f"  - {activity_a!r}\n    {activity_b!r}", file=sys.stderr)
+    print(
+        "  Unify them if they name the same act, or reword them if they don't.\n",
+        file=sys.stderr,
+    )
+
+
 def print_report(results, statutes_by_id: dict[str, Statute], n_rules: int, n_candidates: int) -> None:
     verified = [r for r in results if r.verified]
     print(
@@ -131,6 +151,8 @@ def main() -> None:
 
     statutes, rules = load_corpus(args.statutes)
     statutes_by_id = {s.id: s for s in statutes}
+
+    warn_on_near_miss_activities(rules)
 
     candidates = find_candidates(rules)
     generated = generate_conflict_files(candidates, statutes_by_id, LEAN_CONFLICTS_DIR)

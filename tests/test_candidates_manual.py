@@ -16,7 +16,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from legalean.candidates import CONTRADICTION, PREEMPTION, _find_witness, find_candidates  # noqa: E402
+from legalean.candidates import (  # noqa: E402
+    CONTRADICTION,
+    PREEMPTION,
+    _find_witness,
+    _same_activity,
+    find_candidates,
+    find_near_miss_activities,
+)
 from legalean.corpus import load_corpus  # noqa: E402
 from legalean.models import Condition, Rule  # noqa: E402
 from legalean.scopes import scopes_overlap, strictly_encloses  # noqa: E402
@@ -340,6 +347,52 @@ def test_same_action_is_not_a_candidate():
     a = rule("a", "any person", "some activity", (None, None, None), "prohibited", "US Federal")
     b = rule("b", "some subset", "some activity", ("age", "<", 21), "prohibited", "Arizona State")
     assert find_candidates([a, b]) == []
+
+
+def test_narrower_state_offense_does_not_match_broader_federal_one():
+    """Regression for the South Carolina case that motivated exact matching.
+
+    S.C. Act 69 § 4 criminalizes harboring *with intent to further unlawful
+    entry* -- an extra element the `condition` field never captures. Its
+    tokens are a strict superset of the federal phrase's, so the old subset
+    branch matched them and the tool reported a conflict that may not exist.
+    """
+    federal_activity = "harboring or transporting an unlawfully present alien"
+    state_activity = federal_activity + " with intent to further unlawful entry"
+    assert not _same_activity(federal_activity, state_activity)
+
+    a = rule("a", "any person", federal_activity, ("religious_volunteer", "==", True), "allowed", "US Federal")
+    b = rule("b", "any person", state_activity, (None, None, None), "prohibited", "South Carolina State")
+    assert find_candidates([a, b]) == []
+
+
+def test_activity_matching_still_normalizes_case_punctuation_and_stopwords():
+    """Exact means exact on the *normalized* token set, not on raw text."""
+    assert _same_activity("Harboring an unlawfully present alien.", "harboring unlawfully present alien")
+    assert _same_activity("seeking or engaging in unauthorized employment", "Seeking or engaging in unauthorized employment")
+
+
+def test_near_miss_activity_keys_are_reported():
+    """A singular/plural slip must be surfaced, not silently dropped."""
+    a = rule("a", "x", "failing to carry alien registration document", (None, None, None), "prohibited", "US Federal")
+    b = rule("b", "x", "failing to carry alien registration documents", (None, None, None), "allowed", "Arizona State")
+    assert find_candidates([a, b]) == [], "keys differ, so the pair must not be compared"
+    assert find_near_miss_activities([a, b]) == [
+        ("failing to carry alien registration document", "failing to carry alien registration documents")
+    ]
+
+
+def test_genuinely_unrelated_activities_are_not_near_misses():
+    a = rule("a", "x", "seeking or engaging in unauthorized employment", (None, None, None), "allowed", "US Federal")
+    b = rule("b", "x", "failing to carry alien registration document", (None, None, None), "prohibited", "Arizona State")
+    assert find_near_miss_activities([a, b]) == []
+
+
+def test_corpus_has_no_near_miss_activity_keys():
+    """Every real pairing in the corpus is an exact key match, so any near
+    miss would be a typo hiding a conflict."""
+    _, rules = load_corpus(STATUTES_DIR)
+    assert find_near_miss_activities(rules) == []
 
 
 def test_unrelated_activities_are_not_a_candidate():
