@@ -86,7 +86,7 @@ def main() -> None:
         "README conflict-kind breakdown",
         failures,
     )
-    for phrase in re.findall(r"[A-Z]?[a-z]+ excerpts across [a-z]+ jurisdictions", readme):
+    for phrase in re.findall(r"[A-Z]?[a-z]+(?:-[a-z]+)? excerpts across [a-z]+ jurisdictions", readme):
         if phrase.lower() != f"{word(f['rules'])} excerpts across {word(f['jurisdictions'])} jurisdictions":
             failures.append(
                 f"README corpus description: {phrase!r} should read "
