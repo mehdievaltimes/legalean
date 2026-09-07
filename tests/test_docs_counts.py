@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 import sys
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -43,12 +43,25 @@ def facts() -> dict:
     statutes, rules = load_corpus(ROOT / "statutes")
     candidates = find_candidates(rules)
     kinds = Counter(c.kind for c in candidates)
+
+    # How many states each occupied field displaces -- keyed by the federal
+    # rule that claims it, so the prose about fan-out can be checked too.
+    displaced: dict[str, set[str]] = defaultdict(set)
+    for c in candidates:
+        if c.kind != "preemption":
+            continue
+        federal, other = (c.rule_a, c.rule_b) if c.rule_a.exclusive else (c.rule_b, c.rule_a)
+        displaced[federal.source_id].add(other.scope)
+
     return {
         "rules": len(rules),
         "candidates": len(candidates),
         "contradictions": kinds["contradiction"],
         "preemptions": kinds["preemption"],
         "jurisdictions": len({r.scope for r in rules}),
+        "exclusive_rules": sum(1 for r in rules if r.exclusive),
+        "fields": len(displaced),
+        "displaced": {k: len(v) for k, v in displaced.items()},
     }
 
 
@@ -58,7 +71,17 @@ def expect(haystack: str, needle: str, where: str, failures: list) -> None:
         return
     # Show what is actually there, to make the fix obvious.
     stem = max(needle.split(), key=len)
-    near = [ln.strip() for ln in haystack.splitlines() if stem in ln][:2]
+    near = []
+    for line in haystack.splitlines():
+        idx = line.find(stem)
+        if idx == -1:
+            continue
+        # Window around the hit: the haystack may be the whole file on one
+        # line (prose checks flatten wrapping before matching).
+        start, end = max(0, idx - 60), idx + len(stem) + 60
+        near.append(("..." if start else "") + line[start:end].strip() + ("..." if end < len(line) else ""))
+        if len(near) == 2:
+            break
     failures.append(
         f"{where}: expected to find\n      {needle!r}\n"
         + ("    but found instead:\n" + "\n".join(f"      {n!r}" for n in near) if near else "    (no similar line found)")
@@ -150,11 +173,51 @@ def main() -> None:
     ):
         expect(card, f"<b>{value}</b><span>{label}</span>", "social card stat", failures)
 
+    # -- narrative numbers -------------------------------------------------
+    # Counts written out in prose rather than as a stat: these are the ones
+    # that went stale unnoticed before, because nothing checked them.
+    flat_page = " ".join(page.split())
+
+    fields = f["fields"]
+    for text, where in ((flat, "README"), (flat_page, "project page")):
+        expect(text, f"{word(fields).capitalize()} fields are occupied", f"{where} occupied-field count", failures)
+
+    n_exclusive = f["exclusive_rules"]
+    expect(
+        flat,
+        "Exactly one corpus rule carries the flag"
+        if n_exclusive == 1
+        else f"Exactly {word(n_exclusive)} corpus rules carry the flag",
+        "README exclusive-flag count",
+        failures,
+    )
+
+    registration = f["displaced"].get("us-ina-alien-registration")
+    harboring = f["displaced"].get("us-ina-harboring")
+    if registration:
+        expect(flat_page, f"in {word(registration)} states at once", "project page registration fan-out", failures)
+    if harboring:
+        expect(flat_page, f"displaces parallel offences in {word(harboring)} states", "project page harboring fan-out", failures)
+
+    expect(
+        flat_page,
+        f"The last two rows matter as much as the first {word(f['candidates'])}.",
+        "project page results footnote",
+        failures,
+    )
+    expect(
+        flat_page,
+        f"The counts below ({f['rules']} / {f['candidates']} / {f['jurisdictions']} / {pairings})",
+        "project page editing comment",
+        failures,
+    )
+
     # -- report ------------------------------------------------------------
     print(
         f"corpus: {f['rules']} rules, {f['candidates']} candidates "
         f"({f['contradictions']} contradictions + {f['preemptions']} preemptions), "
-        f"{f['jurisdictions']} jurisdictions, {pairings} pairings documented"
+        f"{f['jurisdictions']} jurisdictions, {pairings} pairings documented, "
+        f"{f['fields']} occupied field(s) displacing {sorted(f['displaced'].values(), reverse=True)} states"
     )
     if failures:
         print(f"\n{len(failures)} doc(s) out of date:\n")

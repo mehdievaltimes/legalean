@@ -372,8 +372,8 @@ for the axiom system itself.
   it from a scheme's comprehensiveness. So marking a rule exclusive feeds a
   legal conclusion into the tool and then derives consequences from it. The
   derivation is machine-checked; the premise is a judgment call, and a wrong
-  one propagates silently. Exactly one corpus rule carries the flag, and a
-  test pins that.
+  one propagates silently. Exactly two corpus rules carry the flag --
+  alien registration and alien harboring -- and a test pins both.
 - **Jurisdiction is not formalized in Lean.** `Allowed`/`Prohibited`/
   `Required`/`ExclusivelyFederal` carry no scope, so nothing in the Lean
   encoding knows federal law outranks state law, or that two states are
