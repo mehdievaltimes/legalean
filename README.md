@@ -21,9 +21,9 @@ third-party Python packages.**
 **Domain covered:** federal immigration law and the Constitution vs. state
 law — principally Arizona's S.B. 1070, partly struck down in *Arizona v.
 United States*, 567 U.S. 387 (2012), plus Texas's school-enrollment statute
-struck down in *Plyler v. Doe*, 457 U.S. 202 (1982), Alabama's H.B. 56 and
-South Carolina's Act 69. Twenty excerpts across five jurisdictions cover
-twelve real pairings, chosen
+struck down in *Plyler v. Doe*, 457 U.S. 202 (1982), plus Alabama's H.B. 56,
+South Carolina's Act 69 and Georgia's H.B. 87. Twenty-one excerpts across
+six jurisdictions cover thirteen real pairings, chosen
 so that every branch of the tool's logic is exercised against actual law:
 
 | Pairing | Actions | Tool says | Courts said |
@@ -40,6 +40,7 @@ so that every branch of the tool's logic is exercised against actual law:
 | Federal harboring safe harbor ↔ A.R.S. § 13-2929 | allowed / prohibited | **conflict** (Lean-verified) | enjoined — *conflict* preemption |
 | Federal harboring field ↔ *the same* A.R.S. § 13-2929 | prohibited / prohibited | **field preemption** (Lean-verified) | enjoined — *field* preemption |
 | *the same federal field* ↔ S.C. Act 69 § 4(B),(D) | prohibited / prohibited | **field preemption** (Lean-verified) | enjoined — *field* preemption |
+| *the same federal field* ↔ Ga. H.B. 87 § 7 | prohibited / prohibited | **field preemption** (Lean-verified) | enjoined — *field* preemption |
 
 Note the registration row: **both rules say `prohibited`**, so there is no
 deontic contradiction there at all, and it is still reported. That is field
@@ -249,11 +250,15 @@ because "even complementary state regulation is impermissible." One
 a real bug. A contradiction needs both rules to speak about the *same* cases,
 so its activity match is exact. Field preemption asks only whether the state
 rule regulates *inside* the field, so a **narrower** offense still matches —
-that is the entire point of occupying a field. S.C. Act 69 § 4(B),(D) is the
-case in point: it adds a specific-intent element, so it is displaced by the
-federal harboring field, yet the tool correctly stays silent on whether it
-contradicts the religious safe harbor, which would require knowing whether a
-volunteer minister could ever satisfy that extra element.
+that is the entire point of occupying a field. S.C. Act 69 § 4(B),(D) and Ga.
+H.B. 87 § 7 are the cases in point: each adds an element (specific intent,
+and commission of another offense), so each is displaced by the federal
+harboring field, yet the tool correctly stays silent on whether either
+contradicts the religious safe harbor — that would require knowing whether a
+volunteer minister could ever satisfy the extra element.
+
+One federal rule now displaces harboring offenses in **three** states, two of
+them through narrower, specialized keys.
 
 Two fields are occupied in the corpus — alien registration and alien
 harboring — by different federal rules, so the mechanism is not special-cased
@@ -288,8 +293,8 @@ It runs `lake build` once (compiles the axioms module; no network, no
 external Lean dependencies), then generates and compiles one Lean file per
 candidate.
 
-Expected output: 20 rules loaded, 10 candidates checked, 10 formally verified
-conflicts (six contradictions and four field preemptions).
+Expected output: 21 rules loaded, 11 candidates checked, 11 formally verified
+conflicts (six contradictions and five field preemptions).
 
 Flags: `--statutes <dir>` to point at a different corpus,
 `--keep-lean-files` to leave the generated proofs in
@@ -324,9 +329,9 @@ python3 tests/test_lean_verification.py    # invokes the Lean compiler
 ```
 
 Plain-assert scripts (not pytest — kept minimal per project scope), no
-network access, no API calls. The first is 40 checks over the corpus and
-hand-built edge cases: that all ten candidates are found (six
-contradictions and four field preemptions), that the two compatible pairs
+network access, no API calls. The first is 41 checks over the corpus and
+hand-built edge cases: that all eleven candidates are found (six
+contradictions and five field preemptions), that the two compatible pairs
 are correctly *not* flagged, that the registration pair is classified as
 preemption rather than contradiction, that preemption requires strict
 enclosure and fires regardless of the displaced rule's action, that one
@@ -345,7 +350,7 @@ for the axiom system itself.
 
 ## Limitations
 
-- **Small, curated corpus.** Twenty excerpts across five jurisdictions,
+- **Small, curated corpus.** Twenty-one excerpts across six jurisdictions,
   one provision per file, chosen to exercise the logic. Not a survey of
   immigration law.
 - **Constitutional rules fit the schema worst.** *Plyler*'s rule is a
