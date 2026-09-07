@@ -77,6 +77,31 @@ def _same_activity(activity_a: str, activity_b: str) -> bool:
     return bool(a) and a == b
 
 
+def _within_field(field_activity: str, activity: str) -> bool:
+    """True if `activity` names an act lying inside the field `field_activity`.
+
+    The two kinds of conflict need different activity semantics, and
+    conflating them was the bug fixed alongside exact matching:
+
+    * A **contradiction** needs both rules to speak about the *same* cases.
+      A narrower state offense cannot be shown to contradict a broader
+      federal permission, because the extra element gating it is not
+      modelled -- hence `_same_activity`, exact.
+    * **Field preemption** asks only whether the state rule regulates
+      *inside* the occupied field. A narrower offense is still inside it --
+      that is the entire point of occupying a field -- so a specialization
+      must match here.
+
+    Specialization is the subset relation in one specific direction: the
+    field's tokens are a subset of the activity's, meaning the rule adds
+    qualifying elements to an act the field already covers. "Harboring an
+    alien **with intent to further unlawful entry**" is inside the harboring
+    field; a *broader* activity is not, so the direction matters.
+    """
+    field = _normalize_tokens(field_activity)
+    return bool(field) and field <= _normalize_tokens(activity)
+
+
 def _looks_related(activity_a: str, activity_b: str, threshold: float = 0.5) -> bool:
     """The old heuristic, kept only to flag activity keys a human should look at."""
     a, b = _normalize_tokens(activity_a), _normalize_tokens(activity_b)
@@ -98,10 +123,22 @@ def find_near_miss_activities(rules: list[Rule]) -> list[tuple[str, str]]:
     should be settled by a similarity threshold.
     """
     activities = sorted({rule.activity for rule in rules})
+    fields = {rule.activity for rule in rules if rule.exclusive}
+
+    def is_intended_specialization(a: str, b: str) -> bool:
+        """A narrower activity sitting inside a declared field is a designed
+        relationship, not a typo -- see `_within_field`."""
+        return any(
+            field in fields and _within_field(field, other)
+            for field, other in ((a, b), (b, a))
+        )
+
     return [
         (a, b)
         for a, b in combinations(activities, 2)
-        if not _same_activity(a, b) and _looks_related(a, b)
+        if not _same_activity(a, b)
+        and _looks_related(a, b)
+        and not is_intended_specialization(a, b)
     ]
 
 
@@ -290,11 +327,21 @@ def _preemption_pair(rule_a: Rule, rule_b: Rule) -> Optional[tuple[Rule, Rule]]:
 
     Requires *strict* enclosure: a federal scheme displaces a state rule, but
     a rule never preempts one of its own sovereign (a federal statute does
-    not preempt itself, and no state preempts another).
+    not preempt itself, and no state preempts another). The displaced rule's
+    activity must lie inside the field (see `_within_field`), which unlike
+    the contradiction path admits a narrower, more qualified offense.
     """
-    if rule_a.exclusive and strictly_encloses(rule_a.scope, rule_b.scope):
+    if (
+        rule_a.exclusive
+        and strictly_encloses(rule_a.scope, rule_b.scope)
+        and _within_field(rule_a.activity, rule_b.activity)
+    ):
         return rule_a, rule_b
-    if rule_b.exclusive and strictly_encloses(rule_b.scope, rule_a.scope):
+    if (
+        rule_b.exclusive
+        and strictly_encloses(rule_b.scope, rule_a.scope)
+        and _within_field(rule_b.activity, rule_a.activity)
+    ):
         return rule_b, rule_a
     return None
 
@@ -321,7 +368,8 @@ def find_candidates(rules: list[Rule]) -> list[Candidate]:
     for rule_a, rule_b in combinations(rules, 2):
         if rule_a.source_id == rule_b.source_id:
             continue
-        if not _same_activity(rule_a.activity, rule_b.activity):
+        preemption = _preemption_pair(rule_a, rule_b)
+        if preemption is None and not _same_activity(rule_a.activity, rule_b.activity):
             continue
 
         witness = _find_witness(rule_a.condition, rule_b.condition)
@@ -332,7 +380,6 @@ def find_candidates(rules: list[Rule]) -> list[Candidate]:
         # it applies it is dispositive regardless of what the displaced rule
         # says, so emitting a second contradiction candidate for the same pair
         # would be noise.
-        preemption = _preemption_pair(rule_a, rule_b)
         if preemption is not None:
             exclusive_rule, displaced_rule = preemption
             candidates.append(
