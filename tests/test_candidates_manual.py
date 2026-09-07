@@ -46,7 +46,7 @@ def rule(source_id, subject, activity, condition, action, scope) -> Rule:
 
 def test_corpus_loads_and_has_expected_candidates():
     statutes, rules = load_corpus(STATUTES_DIR)
-    assert len(rules) == len(statutes) == 23, f"expected 23 excerpts, got {len(statutes)}"
+    assert len(rules) == len(statutes) == 24, f"expected 24 excerpts, got {len(statutes)}"
 
     candidates = find_candidates(rules)
     pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in candidates}
@@ -62,7 +62,8 @@ def test_corpus_loads_and_has_expected_candidates():
     assert frozenset({"us-ina-harboring", "sc-act69-4bd"}) in pairs
     assert frozenset({"us-ina-harboring", "ga-hb87-7"}) in pairs
     assert frozenset({"us-fraudulent-immigration-documents", "sc-act69-6b2"}) in pairs
-    assert len(candidates) == 12, f"expected exactly 12 candidates in the corpus, got {len(candidates)}"
+    assert frozenset({"us-ina-alien-registration", "sc-act69-5"}) in pairs
+    assert len(candidates) == 13, f"expected exactly 13 candidates in the corpus, got {len(candidates)}"
 
 
 def test_one_federal_rule_fans_out_to_multiple_states():
@@ -198,14 +199,18 @@ def test_corpus_registration_pair_is_field_preemption_not_contradiction():
 
 def test_one_exclusive_rule_preempts_across_states():
     """The preemption analogue of fan-out: a single `exclusive` federal rule
-    displaces parallel registration offenses in both Arizona and Alabama."""
+    displaces parallel registration offenses in three states at once."""
     _, rules = load_corpus(STATUTES_DIR)
     displaced = {
         c.rule_b.source_id: c.rule_b.scope
         for c in find_candidates(rules)
         if c.kind == PREEMPTION and c.rule_a.source_id == "us-ina-alien-registration"
     }
-    assert displaced == {"az-sb1070-3": "Arizona State", "al-hb56-10": "Alabama State"}
+    assert displaced == {
+        "az-sb1070-3": "Arizona State",
+        "al-hb56-10": "Alabama State",
+        "sc-act69-5": "South Carolina State",
+    }
 
 
 def test_parallel_state_registration_offenses_are_not_compared():
@@ -240,9 +245,9 @@ def test_preemption_covers_three_distinct_fields():
     }
 
 
-def test_one_state_act_can_intrude_on_two_fields():
-    """S.C. Act 69 appears twice, in different fields declared by different
-    federal rules -- § 4(B),(D) in harboring, § 6(B)(2) in document fraud."""
+def test_one_state_act_can_intrude_on_every_field():
+    """S.C. Act 69 appears three times, once in each occupied field, each
+    declared by a different federal rule."""
     _, rules = load_corpus(STATUTES_DIR)
     by_field = {
         c.rule_b.source_id: c.rule_a.source_id
@@ -252,7 +257,34 @@ def test_one_state_act_can_intrude_on_two_fields():
     assert by_field == {
         "sc-act69-4bd": "us-ina-harboring",
         "sc-act69-6b2": "us-fraudulent-immigration-documents",
+        "sc-act69-5": "us-ina-alien-registration",
     }
+
+
+def test_witness_from_intersecting_two_numeric_conditions():
+    """S.C. Act 69 § 5 states its own `age >= 18`, matching the federal rule's,
+    so this is the only corpus pair whose witness comes from intersecting two
+    intervals rather than satisfying one condition alone."""
+    _, rules = load_corpus(STATUTES_DIR)
+    by_id = {r.source_id: r for r in rules}
+    federal, state = by_id["us-ina-alien-registration"], by_id["sc-act69-5"]
+    assert not federal.condition.is_unconditional and not state.condition.is_unconditional
+    assert federal.condition.as_text() == state.condition.as_text() == "age >= 18"
+
+    pair = next(
+        c
+        for c in find_candidates(rules)
+        if {c.rule_a.source_id, c.rule_b.source_id} == {"us-ina-alien-registration", "sc-act69-5"}
+    )
+    assert pair.witness.lean_type == "Int" and pair.witness.value == 18
+
+    # Every other corpus pair has at least one unconditional side.
+    both_conditional = [
+        c
+        for c in find_candidates(rules)
+        if not c.rule_a.condition.is_unconditional and not c.rule_b.condition.is_unconditional
+    ]
+    assert len(both_conditional) == 1
 
 
 def test_one_provision_can_be_caught_on_two_independent_grounds():
