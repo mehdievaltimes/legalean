@@ -326,6 +326,7 @@ never run against it.
 ```bash
 python3 tests/test_candidates_manual.py    # pure Python: corpus parsing + pre-filter
 python3 tests/test_lean_verification.py    # invokes the Lean compiler
+python3 tests/test_docs_counts.py          # docs still match the corpus
 ```
 
 Plain-assert scripts (not pytest — kept minimal per project scope), no

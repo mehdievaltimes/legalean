@@ -20,6 +20,10 @@ jobs:
       - name: Candidate pre-filter tests
         run: python3 tests/test_candidates_manual.py
 
+      # Fails if README/page/card counts drift from what the pipeline reports.
+      - name: Docs match the corpus
+        run: python3 tests/test_docs_counts.py
+
       - name: Install Lean toolchain
         run: |
           curl --proto '=https' --tlsv1.2 -sSf \

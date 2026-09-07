@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Legalean — formally verified statutory conflicts</title>
-<meta name="description" content="Formalizes statutes as deontic-logic rules and proves conflicts between them with the Lean 4 kernel. 19 excerpts, 9 machine-checked conflicts, four jurisdictions.">
+<meta name="description" content="Formalizes statutes as deontic-logic rules and proves conflicts between them with the Lean 4 kernel. 20 excerpts, 10 machine-checked conflicts, five jurisdictions.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://mehdievaltimes.github.io/legalean/">
 <meta property="og:title" content="Legalean — formally verified statutory conflicts">
@@ -42,10 +42,10 @@
     #boundary        the limitations. Do not quietly drop these.
 
   KEEPING IT HONEST
-    The counts below (19 / 9 / 4 / 11) come from the CI run's own output:
-      gh run view --repo mehdievaltimes/legalean --log | grep "Loaded"
-    If you add statutes, re-read that line and update the numbers here, in
-    the README, and in the og:description meta tag above.
+    The counts below (20 / 10 / 5 / 12) are checked in CI by
+    tests/test_docs_counts.py, which fails the build if this page, the
+    README, or the social card drifts from what the pipeline reports. Run
+    it locally after editing:  python3 tests/test_docs_counts.py
   ============================================================================
 -->
 
@@ -176,9 +176,9 @@
     <a class="btn" href="https://github.com/mehdievaltimes/legalean/tree/master/statutes">The corpus</a>
   </div>
   <div class="stats">
-    <div class="stat"><b>19</b><span>statutory excerpts, hand-formalized</span></div>
-    <div class="stat"><b>9</b><span>conflicts proved by the Lean kernel</span></div>
-    <div class="stat"><b>4</b><span>jurisdictions: federal, AZ, AL, TX</span></div>
+    <div class="stat"><b>20</b><span>statutory excerpts, hand-formalized</span></div>
+    <div class="stat"><b>10</b><span>conflicts proved by the Lean kernel</span></div>
+    <div class="stat"><b>5</b><span>jurisdictions: federal, AZ, AL, TX, SC</span></div>
     <div class="stat"><b>2</b><span>kinds of conflict detected</span></div>
   </div>
 </header>
@@ -197,12 +197,12 @@
     <div class="kind a">
       <h4>Contradiction</h4>
       <p>One sovereign permits an act the other forbids, for a case both rules cover. The classic conflict — and it requires the two rules to genuinely disagree.</p>
-      <span class="tag">6 of 9 · closes with allowed_prohibited_excl or prohibited_required_excl</span>
+      <span class="tag">6 of 10 · closes with allowed_prohibited_excl or prohibited_required_excl</span>
     </div>
     <div class="kind b">
       <h4>Field preemption</h4>
       <p>A field belongs exclusively to one sovereign, so <em>any</em> rule from another sovereign in that field collides with it — <strong>even one that agrees word for word</strong>.</p>
-      <span class="tag">3 of 9 · closes with field_preemption_excl</span>
+      <span class="tag">4 of 10 · closes with field_preemption_excl</span>
     </div>
   </div>
   <p>The second kind is why the corpus can handle S.B. 1070 § 3 and Ala. H.B. 56 § 10. Both merely duplicate the federal prohibition — both rules say <code>prohibited</code>, they agree completely — and both were struck down anyway, because Congress occupied the field. Alabama's § 10 is defined by reference to violations of the federal sections it mirrors; the Eleventh Circuit held it preempted regardless, since even complementary state regulation is impermissible there.</p>
@@ -261,7 +261,7 @@ axiom field_preemption_excl (p : Prop) :
 
 <section id="results">
   <h2>Results on real law</h2>
-  <p>Nineteen excerpts across four jurisdictions, covering eleven pairings — chosen so every branch of the logic is exercised against statutes whose outcomes courts have already decided.</p>
+  <p>Twenty excerpts across five jurisdictions, covering twelve pairings — chosen so every branch of the logic is exercised against statutes whose outcomes courts have already decided.</p>
   <div class="tablewrap">
   <table>
     <thead><tr><th>Pairing</th><th>Actions</th><th>Tool says</th><th>Courts said</th></tr></thead>
@@ -275,12 +275,13 @@ axiom field_preemption_excl (p : Prop) :
       <tr><td>Federal alien registration ↔ S.B. 1070 § 3</td><td>prohibited / prohibited</td><td class="verdict v-field">field preemption</td><td>§ 3 preempted — <em>field</em> preemption</td></tr>
       <tr><td><em>the same federal rule</em> ↔ Ala. H.B. 56 § 10</td><td>prohibited / prohibited</td><td class="verdict v-field">field preemption</td><td>§ 10 permanently enjoined</td></tr>
       <tr><td>Federal harboring field ↔ <em>the same</em> A.R.S. § 13-2929</td><td>prohibited / prohibited</td><td class="verdict v-field">field preemption</td><td>enjoined — <em>field</em> preemption</td></tr>
+      <tr><td><em>the same federal field</em> ↔ S.C. Act 69 § 4(B),(D)</td><td>prohibited / prohibited</td><td class="verdict v-field">field preemption</td><td>field preempted (4th Cir.)</td></tr>
       <tr><td>Federal voluntary E-Verify ↔ Legal Arizona Workers Act</td><td>allowed / required</td><td class="verdict v-ok">compatible</td><td>upheld (<em class="case">Whiting</em>)</td></tr>
       <tr><td>Federal status-check cooperation ↔ S.B. 1070 § 2(B)</td><td>allowed / required</td><td class="verdict v-ok">compatible</td><td>§ 2(B) upheld on its face</td></tr>
     </tbody>
   </table>
   </div>
-  <p style="margin-top:16px">The last two rows matter as much as the first nine. A tool that flags everything is useless; these two pairs look superficially like conflicts and are correctly reported as compatible, because a state may require what federal law merely permits.</p>
+  <p style="margin-top:16px">The last two rows matter as much as the first ten. A tool that flags everything is useless; these two pairs look superficially like conflicts and are correctly reported as compatible, because a state may require what federal law merely permits.</p>
 </section>
 
 <section id="boundary">
@@ -303,12 +304,12 @@ axiom field_preemption_excl (p : Prop) :
 <pre><code>git clone https://github.com/mehdievaltimes/legalean
 cd legalean
 python3 check_conflicts.py</code></pre>
-  <p>Expected output: 19 rules loaded, 9 candidates checked, 9 formally verified conflicts — six contradictions and three field preemptions. CI runs exactly this on every push, installing Lean from scratch, so the build badge reflects proofs that compile on a clean machine rather than on one developer's laptop.</p>
+  <p>Expected output: 20 rules loaded, 10 candidates checked, 10 formally verified conflicts — six contradictions and four field preemptions. CI runs exactly this on every push, installing Lean from scratch, so the build badge reflects proofs that compile on a clean machine rather than on one developer's laptop.</p>
 </section>
 
 <footer>
   <p>MIT licensed · <a href="https://github.com/mehdievaltimes/legalean">github.com/mehdievaltimes/legalean</a><br>
-  Case outcomes cited from <em class="case">Arizona v. United States</em>, 567 U.S. 387 (2012); <em class="case">Plyler v. Doe</em>, 457 U.S. 202 (1982); <em class="case">Chamber of Commerce v. Whiting</em>, 563 U.S. 582 (2011); and the Ninth and Eleventh Circuit decisions on A.R.S. § 13-2929 and H.B. 56.</p>
+  Case outcomes cited from <em class="case">Arizona v. United States</em>, 567 U.S. 387 (2012); <em class="case">Plyler v. Doe</em>, 457 U.S. 202 (1982); <em class="case">Chamber of Commerce v. Whiting</em>, 563 U.S. 582 (2011); and the Fourth, Ninth, and Eleventh Circuit decisions on S.C. Act 69, A.R.S. § 13-2929, and H.B. 56.</p>
 </footer>
 
 </div>
