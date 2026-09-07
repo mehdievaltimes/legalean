@@ -46,7 +46,7 @@ def rule(source_id, subject, activity, condition, action, scope) -> Rule:
 
 def test_corpus_loads_and_has_expected_candidates():
     statutes, rules = load_corpus(STATUTES_DIR)
-    assert len(rules) == len(statutes) == 21, f"expected 21 excerpts, got {len(statutes)}"
+    assert len(rules) == len(statutes) == 23, f"expected 23 excerpts, got {len(statutes)}"
 
     candidates = find_candidates(rules)
     pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in candidates}
@@ -61,7 +61,8 @@ def test_corpus_loads_and_has_expected_candidates():
     assert frozenset({"us-ina-harboring", "az-sb1070-13-2929"}) in pairs
     assert frozenset({"us-ina-harboring", "sc-act69-4bd"}) in pairs
     assert frozenset({"us-ina-harboring", "ga-hb87-7"}) in pairs
-    assert len(candidates) == 11, f"expected exactly 11 candidates in the corpus, got {len(candidates)}"
+    assert frozenset({"us-fraudulent-immigration-documents", "sc-act69-6b2"}) in pairs
+    assert len(candidates) == 12, f"expected exactly 12 candidates in the corpus, got {len(candidates)}"
 
 
 def test_one_federal_rule_fans_out_to_multiple_states():
@@ -219,14 +220,15 @@ def test_exclusive_flags_stay_rare_and_deliberate():
     """`exclusive` encodes a judicial holding, so each one is a deliberate act."""
     _, rules = load_corpus(STATUTES_DIR)
     assert sorted(r.source_id for r in rules if r.exclusive) == [
+        "us-fraudulent-immigration-documents",
         "us-ina-alien-registration",
         "us-ina-harboring",
     ]
 
 
-def test_preemption_covers_two_distinct_fields():
-    """The exclusive mechanism is not special-cased to one field: registration
-    and harboring are both occupied, by different federal rules."""
+def test_preemption_covers_three_distinct_fields():
+    """The exclusive mechanism is not special-cased to one field: registration,
+    harboring and document fraud are each occupied, by different federal rules."""
     _, rules = load_corpus(STATUTES_DIR)
     fields = {
         c.rule_a.activity for c in find_candidates(rules) if c.kind == PREEMPTION
@@ -234,6 +236,22 @@ def test_preemption_covers_two_distinct_fields():
     assert fields == {
         "failing to carry alien registration document",
         "harboring or transporting an unlawfully present alien",
+        "possessing or using a fraudulent immigration document",
+    }
+
+
+def test_one_state_act_can_intrude_on_two_fields():
+    """S.C. Act 69 appears twice, in different fields declared by different
+    federal rules -- § 4(B),(D) in harboring, § 6(B)(2) in document fraud."""
+    _, rules = load_corpus(STATUTES_DIR)
+    by_field = {
+        c.rule_b.source_id: c.rule_a.source_id
+        for c in find_candidates(rules)
+        if c.kind == PREEMPTION and c.rule_b.source_id.startswith("sc-act69")
+    }
+    assert by_field == {
+        "sc-act69-4bd": "us-ina-harboring",
+        "sc-act69-6b2": "us-fraudulent-immigration-documents",
     }
 
 

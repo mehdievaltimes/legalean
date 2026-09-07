@@ -22,8 +22,8 @@ third-party Python packages.**
 law — principally Arizona's S.B. 1070, partly struck down in *Arizona v.
 United States*, 567 U.S. 387 (2012), plus Texas's school-enrollment statute
 struck down in *Plyler v. Doe*, 457 U.S. 202 (1982), plus Alabama's H.B. 56,
-South Carolina's Act 69 and Georgia's H.B. 87. Twenty-one excerpts across
-six jurisdictions cover thirteen real pairings, chosen
+South Carolina's Act 69 and Georgia's H.B. 87. Twenty-three excerpts across
+six jurisdictions cover fourteen real pairings, chosen
 so that every branch of the tool's logic is exercised against actual law:
 
 | Pairing | Actions | Tool says | Courts said |
@@ -41,6 +41,7 @@ so that every branch of the tool's logic is exercised against actual law:
 | Federal harboring field ↔ *the same* A.R.S. § 13-2929 | prohibited / prohibited | **field preemption** (Lean-verified) | enjoined — *field* preemption |
 | *the same federal field* ↔ S.C. Act 69 § 4(B),(D) | prohibited / prohibited | **field preemption** (Lean-verified) | enjoined — *field* preemption |
 | *the same federal field* ↔ Ga. H.B. 87 § 7 | prohibited / prohibited | **field preemption** (Lean-verified) | enjoined — *field* preemption |
+| Federal document-fraud field ↔ S.C. Act 69 § 6(B)(2) | prohibited / prohibited | **field preemption** (Lean-verified) | field preempted (4th Cir.) |
 
 Note the registration row: **both rules say `prohibited`**, so there is no
 deontic contradiction there at all, and it is still reported. That is field
@@ -260,9 +261,12 @@ volunteer minister could ever satisfy the extra element.
 One federal rule now displaces harboring offenses in **three** states, two of
 them through narrower, specialized keys.
 
-Two fields are occupied in the corpus — alien registration and alien
-harboring — by different federal rules, so the mechanism is not special-cased
-to one. One provision, A.R.S. § 13-2929, is caught **twice on independent
+Three fields are occupied in the corpus — alien registration, alien
+harboring, and fraudulent immigration documents — each by a different federal
+rule, so the mechanism is not special-cased to any of them. S.C. Act 69
+appears twice for this reason: § 4(B),(D) sits inside the harboring field and
+§ 6(B)(2) inside document fraud, and one state act can intrude on more than
+one federal scheme. One provision, A.R.S. § 13-2929, is caught **twice on independent
 grounds**: displaced by the federal harboring field claim, and separately
 contradicting the religious safe harbor. That is how the Ninth Circuit
 decided it, holding the section field preempted and conflict preempted in
@@ -293,8 +297,8 @@ It runs `lake build` once (compiles the axioms module; no network, no
 external Lean dependencies), then generates and compiles one Lean file per
 candidate.
 
-Expected output: 21 rules loaded, 11 candidates checked, 11 formally verified
-conflicts (six contradictions and five field preemptions).
+Expected output: 23 rules loaded, 12 candidates checked, 12 formally verified
+conflicts (six contradictions and six field preemptions).
 
 Flags: `--statutes <dir>` to point at a different corpus,
 `--keep-lean-files` to leave the generated proofs in
@@ -330,9 +334,9 @@ python3 tests/test_docs_counts.py          # docs still match the corpus
 ```
 
 Plain-assert scripts (not pytest — kept minimal per project scope), no
-network access, no API calls. The first is 41 checks over the corpus and
-hand-built edge cases: that all eleven candidates are found (six
-contradictions and five field preemptions), that the two compatible pairs
+network access, no API calls. The first is 42 checks over the corpus and
+hand-built edge cases: that all twelve candidates are found (six
+contradictions and six field preemptions), that the two compatible pairs
 are correctly *not* flagged, that the registration pair is classified as
 preemption rather than contradiction, that preemption requires strict
 enclosure and fires regardless of the displaced rule's action, that one
@@ -351,7 +355,7 @@ for the axiom system itself.
 
 ## Limitations
 
-- **Small, curated corpus.** Twenty-one excerpts across six jurisdictions,
+- **Small, curated corpus.** Twenty-three excerpts across six jurisdictions,
   one provision per file, chosen to exercise the logic. Not a survey of
   immigration law.
 - **Constitutional rules fit the schema worst.** *Plyler*'s rule is a
@@ -372,8 +376,9 @@ for the axiom system itself.
   it from a scheme's comprehensiveness. So marking a rule exclusive feeds a
   legal conclusion into the tool and then derives consequences from it. The
   derivation is machine-checked; the premise is a judgment call, and a wrong
-  one propagates silently. Exactly two corpus rules carry the flag --
-  alien registration and alien harboring -- and a test pins both.
+  one propagates silently. Exactly three corpus rules carry the flag --
+  alien registration, alien harboring and document fraud -- and a test pins
+  all three.
 - **Jurisdiction is not formalized in Lean.** `Allowed`/`Prohibited`/
   `Required`/`ExclusivelyFederal` carry no scope, so nothing in the Lean
   encoding knows federal law outranks state law, or that two states are
