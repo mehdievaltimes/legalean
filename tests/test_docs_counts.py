@@ -57,7 +57,7 @@ def expect(haystack: str, needle: str, where: str, failures: list) -> None:
     if needle in haystack:
         return
     # Show what is actually there, to make the fix obvious.
-    stem = needle.split()[0]
+    stem = max(needle.split(), key=len)
     near = [ln.strip() for ln in haystack.splitlines() if stem in ln][:2]
     failures.append(
         f"{where}: expected to find\n      {needle!r}\n"
@@ -86,7 +86,10 @@ def main() -> None:
         "README conflict-kind breakdown",
         failures,
     )
-    for phrase in re.findall(r"[A-Z]?[a-z]+ excerpts across [a-z]+ jurisdictions", readme):
+    # Collapse wrapping so a phrase split over two lines still matches, and
+    # allow hyphenated number words ("twenty-one").
+    flat = " ".join(readme.split())
+    for phrase in re.findall(r"[A-Za-z]+(?:-[a-z]+)? excerpts across [a-z]+(?:-[a-z]+)? jurisdictions", flat):
         if phrase.lower() != f"{word(f['rules'])} excerpts across {word(f['jurisdictions'])} jurisdictions":
             failures.append(
                 f"README corpus description: {phrase!r} should read "
@@ -114,7 +117,7 @@ def main() -> None:
     expect(page, f"{f['contradictions']} of {f['candidates']} ·", "project page contradiction tag", failures)
     expect(page, f"{f['preemptions']} of {f['candidates']} ·", "project page preemption tag", failures)
     expect(
-        page,
+        " ".join(page.split()),
         f"{word(f['rules']).capitalize()} excerpts across {word(f['jurisdictions'])} jurisdictions, covering {word(pairings)} pairings",
         "project page results intro",
         failures,
