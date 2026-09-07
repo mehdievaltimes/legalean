@@ -56,11 +56,11 @@ def test_corpus_conflicts_are_formally_verified():
     statutes, rules = load_corpus(STATUTES_DIR)
     statutes_by_id = {s.id: s for s in statutes}
     candidates = find_candidates(rules)
-    assert len(candidates) == 12
+    assert len(candidates) == 13
 
     generated = generate_conflict_files(candidates, statutes_by_id, SCRATCH_DIR)
     results = verify_all(generated, LEAN_DIR)
-    assert len(results) == 12
+    assert len(results) == 13
     for result in results:
         assert result.verified, f"Lean rejected a conflict expected to be provable: {result.stderr}"
 
@@ -206,6 +206,24 @@ def test_field_preemption_proof_uses_its_own_axiom():
     assert "Prohibited (Activity x)" in source and "Or.inr (Or.inl" in source
     # And the federal condition is still really checked.
     assert "x ≥ 18" in source and "by omega" in source
+    assert verify_all(generated, LEAN_DIR)[0].verified
+
+
+def test_both_premises_can_be_discharged_by_omega():
+    """S.C. Act 69 § 5 carries the same `age >= 18` as the federal rule, so its
+    proof is the only one where both premises need omega rather than one."""
+    statutes, rules = load_corpus(STATUTES_DIR)
+    statutes_by_id = {s.id: s for s in statutes}
+    pair = [
+        c
+        for c in find_candidates(rules)
+        if {c.rule_a.source_id, c.rule_b.source_id} == {"us-ina-alien-registration", "sc-act69-5"}
+    ]
+    assert len(pair) == 1
+    generated = generate_conflict_files(pair, statutes_by_id, SCRATCH_DIR)
+    source = generated[0].path.read_text(encoding="utf-8")
+    assert source.count("by omega") == 2, "expected omega to discharge both premises"
+    assert "trivial" not in source, "neither side is unconditional here"
     assert verify_all(generated, LEAN_DIR)[0].verified
 
 
