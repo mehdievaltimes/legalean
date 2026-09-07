@@ -324,12 +324,16 @@ python3 tests/test_lean_verification.py    # invokes the Lean compiler
 ```
 
 Plain-assert scripts (not pytest — kept minimal per project scope), no
-network access, no API calls. The first checks the corpus parses, that the
-two conflicts are found, that the two compatible pairs and two
-field-preemption pairs are correctly *not* flagged, and covers edge cases
-(overlapping age gates, non-overlapping partitions, same-action pairs,
-unrelated activities, disjoint jurisdictions, mismatched condition
-variables). The second compiles generated proofs and asserts three things:
+network access, no API calls. The first is 40 checks over the corpus and
+hand-built edge cases: that all ten candidates are found (six
+contradictions and four field preemptions), that the two compatible pairs
+are correctly *not* flagged, that the registration pair is classified as
+preemption rather than contradiction, that preemption requires strict
+enclosure and fires regardless of the displaced rule's action, that one
+provision can be caught on two independent grounds, and that a general rule
+is never flagged against its own exception — plus the usual boundaries
+(overlapping age gates, non-overlapping ranges, same-action pairs,
+unrelated activities, disjoint jurisdictions, mismatched condition types). The second compiles generated proofs and asserts three things:
 the corpus's real conflicts are accepted by Lean; a deliberately
 non-overlapping witness is **rejected** by Lean (so the guarantee is real,
 not decorative); and each generated file's header pairs every citation with
