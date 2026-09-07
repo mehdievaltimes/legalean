@@ -56,11 +56,11 @@ def test_corpus_conflicts_are_formally_verified():
     statutes, rules = load_corpus(STATUTES_DIR)
     statutes_by_id = {s.id: s for s in statutes}
     candidates = find_candidates(rules)
-    assert len(candidates) == 10
+    assert len(candidates) == 11
 
     generated = generate_conflict_files(candidates, statutes_by_id, SCRATCH_DIR)
     results = verify_all(generated, LEAN_DIR)
-    assert len(results) == 10
+    assert len(results) == 11
     for result in results:
         assert result.verified, f"Lean rejected a conflict expected to be provable: {result.stderr}"
 

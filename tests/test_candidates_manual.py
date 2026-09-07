@@ -46,7 +46,7 @@ def rule(source_id, subject, activity, condition, action, scope) -> Rule:
 
 def test_corpus_loads_and_has_expected_candidates():
     statutes, rules = load_corpus(STATUTES_DIR)
-    assert len(rules) == len(statutes) == 20, f"expected 20 excerpts, got {len(statutes)}"
+    assert len(rules) == len(statutes) == 21, f"expected 21 excerpts, got {len(statutes)}"
 
     candidates = find_candidates(rules)
     pairs = {frozenset({c.rule_a.source_id, c.rule_b.source_id}) for c in candidates}
@@ -60,7 +60,8 @@ def test_corpus_loads_and_has_expected_candidates():
     assert frozenset({"us-ina-alien-registration", "al-hb56-10"}) in pairs
     assert frozenset({"us-ina-harboring", "az-sb1070-13-2929"}) in pairs
     assert frozenset({"us-ina-harboring", "sc-act69-4bd"}) in pairs
-    assert len(candidates) == 10, f"expected exactly 10 candidates in the corpus, got {len(candidates)}"
+    assert frozenset({"us-ina-harboring", "ga-hb87-7"}) in pairs
+    assert len(candidates) == 11, f"expected exactly 11 candidates in the corpus, got {len(candidates)}"
 
 
 def test_one_federal_rule_fans_out_to_multiple_states():
@@ -107,7 +108,7 @@ def test_corpus_numeric_condition_pair_gets_a_witness():
     assert plyler.witness.lean_type == "Int"
 
 
-def test_corpus_spans_five_jurisdictions():
+def test_corpus_spans_six_jurisdictions():
     _, rules = load_corpus(STATUTES_DIR)
     assert {r.scope for r in rules} == {
         "US Federal",
@@ -115,20 +116,34 @@ def test_corpus_spans_five_jurisdictions():
         "Texas State",
         "Alabama State",
         "South Carolina State",
+        "Georgia State",
     }
 
 
-def test_narrower_offense_is_preempted_but_does_not_contradict():
-    """South Carolina's harboring felony carries an extra specific-intent
-    element, so it is inside the occupied field (preempted) but cannot be
+def test_narrower_offenses_are_preempted_but_do_not_contradict():
+    """South Carolina's and Georgia's harboring offenses each carry an extra
+    element, so each is inside the occupied field (preempted) but cannot be
     shown to contradict the religious safe harbor (unverifiable, so silent)."""
     _, rules = load_corpus(STATUTES_DIR)
-    against_sc = {
-        (c.kind, c.rule_a.source_id)
+    for narrower in ("sc-act69-4bd", "ga-hb87-7"):
+        against = {
+            (c.kind, c.rule_a.source_id)
+            for c in find_candidates(rules)
+            if narrower in {c.rule_a.source_id, c.rule_b.source_id}
+        }
+        assert against == {(PREEMPTION, "us-ina-harboring")}, f"{narrower}: {against}"
+
+
+def test_harboring_field_displaces_three_states():
+    """One `exclusive` federal rule reaches Arizona, South Carolina and
+    Georgia -- two of them via narrower, specialized activity keys."""
+    _, rules = load_corpus(STATUTES_DIR)
+    displaced = {
+        c.rule_b.scope
         for c in find_candidates(rules)
-        if "sc-act69-4bd" in {c.rule_a.source_id, c.rule_b.source_id}
+        if c.kind == PREEMPTION and c.rule_a.source_id == "us-ina-harboring"
     }
-    assert against_sc == {(PREEMPTION, "us-ina-harboring")}
+    assert displaced == {"Arizona State", "South Carolina State", "Georgia State"}
 
 
 def test_field_membership_is_directional():

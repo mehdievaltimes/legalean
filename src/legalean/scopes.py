@@ -18,6 +18,7 @@ _OVERLAPPING_SCOPES = {
     frozenset({"US Federal", "Texas State"}),
     frozenset({"US Federal", "Alabama State"}),
     frozenset({"US Federal", "South Carolina State"}),
+    frozenset({"US Federal", "Georgia State"}),
 }
 
 
