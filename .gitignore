@@ -1,3 +1,6 @@
+# macOS Finder metadata (no leading slash, so it matches at any depth)
+.DS_Store
+
 __pycache__/
 *.pyc
 .venv/
